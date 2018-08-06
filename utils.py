@@ -38,9 +38,9 @@ def postprocess_config(cfg):
                     cfg[k][int(_k)] = cfg[k].pop(_k)
     return cfg
 
-def adjust_learning_rate(optimizer, epoch, init_lr):
+def adjust_learning_rate(optimizer, epoch, init_lr=0.01, lr_decay=0.5, lr_freq=30):
     """Sets the learning rate to the initial LR decayed by 2 every 30 epochs"""
-    lr = init_lr * (0.5 ** (epoch // 30))
+    lr = init_lr * (lr_decay ** (epoch // lr_freq))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 

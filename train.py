@@ -40,6 +40,10 @@ def get_parser():
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
                         help='the initial learning rate')
+    parser.add_argument('--lr_decay', default=0.5, type=float, action='store',
+                        help='the rate of decaying learning rate')
+    parser.add_argument('--lr_freq', default=30, type=int, action='store',
+                        help='the internal to decay the learning rate')
 
     return parser
 
@@ -86,7 +90,7 @@ def attention_model_training(args):
 
     for epoch in range(300):
         
-        adjust_learning_rate(optimizer, epoch, args.init_lr)
+        adjust_learning_rate(optimizer, epoch, args.init_lr, args.lr_decay, args.lr_freq)
         '''Training Stage'''
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):

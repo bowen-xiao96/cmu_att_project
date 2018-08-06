@@ -2,4 +2,4 @@
 # no bn layer
 # contains attention layer
 
-python train.py --gpu 2 --init_lr 0.001 --network_config vgg16_attention.cfg
+python train.py --gpu 3 --init_lr 0.0001 --network_config vgg16_attention.cfg --lr_freq 200
