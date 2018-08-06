@@ -48,9 +48,7 @@ def attention_model_training(args):
 
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
 
-    attention_layers = []
-
-    net = AttentionNetwork(network_cfg, attention_layers, 10)
+    net = AttentionNetwork(network_cfg)
     net.cuda()
     print(net)
     
@@ -105,9 +103,9 @@ def attention_model_training(args):
 
             running_loss += loss.data[0]
 
-            #if i % 20 == 0:
-            #    print("Training Loss:", running_loss / 20)
-            #    running_loss = 0.0
+            if i % 20 == 0:
+                print("Training Loss:", running_loss / 20)
+                running_loss = 0.0
 
         '''Test Stage'''  
         correct = 0

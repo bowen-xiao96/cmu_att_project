@@ -91,8 +91,14 @@ def getConvSetting(i, cfg, layer_name='layers'):
     padding = 1
     return output_dim, kernel_size, padding
 
-def getAttentionLayer(i, cfg, layer_name='layers'):
-    return False
+def getAttentionLayer(cfg):
+    ret_val = []
+    if 'attention_layers' in cfg:
+        print("attention layers:", cfg['attention_layers'])
+        for i in range(len(cfg['attention_layers'])):
+                ret_val.append(cfg['attention_layers'][i])
+
+    return ret_val
 
 def getDepth(cfg):
     return cfg['depth']

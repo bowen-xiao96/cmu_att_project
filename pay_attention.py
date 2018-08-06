@@ -18,20 +18,15 @@ import torchvision.transforms as transforms
 from utils import *
 
 
-attention_layers = [13, 20, 27]
-
-
 class AttentionNetwork(nn.Module):
-    def __init__(self, cfg, 
-                attention_layers=[], 
-                num_class=10):
+    def __init__(self, cfg, num_class=10):
         
         super(AttentionNetwork, self).__init__()
 
         # cfg: network structure (see above)
         # attention_layers: index of layers to be used to calculate attention
         # num_class: number of classification categories
-        self.attention_layers = attention_layers
+        self.attention_layers = getAttentionLayer(cfg)
 
         # set up backbone network
         self.backbone = nn.ModuleList()
@@ -54,23 +49,6 @@ class AttentionNetwork(nn.Module):
 
                 self.backbone.append(nn.ReLU(inplace=True))
             
-            if getAttentionLayer(i, cfg):
-                # set up attention layers
-                self.attention = nn.ModuleList()
-                concat_dim = list()
-                for v in attention_layers:
-                    m = nn.ModuleList()
-                    feature_dim = self.backbone[v - 1].out_channels
-                    if feature_dim != 512:
-                        # we need an additional fc layer to project global feature to the lower-dimensional space
-                        # if their dimensions do not match
-                        m.append(nn.Linear(512, feature_dim))
-
-                    # attention scoring layer, implement as a 1x1 convolution
-                    m.append(nn.Conv2d(feature_dim, 1, kernel_size=1))
-                    self.attention.append(m)
-                    concat_dim.append(feature_dim)
-
             if getFC(i, cfg):
                 output_dim, dropout_rate, output = getFCSetting(i, cfg)
                 self.fclayers.append(nn.Linear(input_dim, output_dim))
@@ -79,10 +57,31 @@ class AttentionNetwork(nn.Module):
                 if dropout_rate != 0:
                     self.fclayers.append(nn.Dropout(dropout_rate))
 
-                input_dim = output_dim
-        
-                if len(attention_layers) != 0:
-                    self.att_fc = nn.Linear(sum(concat_dim), num_class)
+                input_dim = output_dim      
+
+        # Set up Attention Layers
+        if self.attention_layers != []:
+
+            attention_layers = self.attention_layers
+
+            self.attention = nn.ModuleList()
+            concat_dim = list()
+            for v in attention_layers:
+                m = nn.ModuleList()
+                print(self.backbone[v-1])
+                feature_dim = self.backbone[v - 1].out_channels
+                if feature_dim != 512:
+                    # we need an additional fc layer to project global feature to the lower-dimensional space
+                    # if their dimensions do not match
+                    m.append(nn.Linear(512, feature_dim))
+
+                # attention scoring layer, implement as a 1x1 convolution
+                m.append(nn.Conv2d(feature_dim, 1, kernel_size=1))
+                self.attention.append(m)
+                concat_dim.append(feature_dim)
+
+            
+            self.att_fc = nn.Linear(sum(concat_dim), num_class)
 
         # Initialize weights
 
@@ -115,7 +114,7 @@ class AttentionNetwork(nn.Module):
 
                 # attention score map (do 1x1 convolution on the addition of feature map and the global feature)
                 score = self.attention[i][-1](feature_map + new_x.view(new_x.size(0), -1, 1, 1))
-                score = F.softmax(score, dim=1)
+                score = F.softmax(score)
 
                 # weighted sum the feature map
                 weighted_sum = torch.sum(torch.sum(score * feature_map, dim=3), dim=2)
