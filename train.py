@@ -26,10 +26,12 @@ def get_parser():
     # General settings
     parser.add_argument('--gpu', default=None, type=str, action='store',
                         help='the id of gpu')
-    parser.add_argument('--save_file', default=None, type=str, action='store',
-                        help='the name of file saving the model')
+    parser.add_argument('--save_dir', default=None, type=str, action='store',
+                        help='the directory of saving the model')
     parser.add_argument('--load_file', default=None, type=str, action='store',
                         help='the name of file loading the model')
+    parser.add_argument('--data_path', default='/mnt/fs1/siming/data/', type=str, action='store',
+                        help='the path of loading data')
 
     # Network settings
     parser.add_argument('--network_config', default=None, type=str, action='store',
@@ -71,7 +73,7 @@ def attention_model_training(args):
                                      std=[0.229, 0.224, 0.225])
     
     trainloader = torch.utils.data.DataLoader(
-                    datasets.CIFAR10(root='/mnt/fs1/siming/data', train=True, transform=transforms.Compose([
+                    datasets.CIFAR10(root=args.data_path, train=True, transform=transforms.Compose([
                                 transforms.RandomHorizontalFlip(),
                                 transforms.RandomCrop(32, 4),
                                 transforms.ToTensor(),
@@ -81,7 +83,7 @@ def attention_model_training(args):
                                 num_workers=4, pin_memory=True)
 
     testloader = torch.utils.data.DataLoader(
-                    datasets.CIFAR10(root='/mnt/fs1/siming/data', train=False, transform=transforms.Compose([
+                    datasets.CIFAR10(root=args.data_path, train=False, transform=transforms.Compose([
                                 transforms.ToTensor(),
                                 normalize,
                                 ])),
@@ -128,8 +130,14 @@ def attention_model_training(args):
 
         print("Epoch %d, Test accuracy: %f, lr=%f" % (epoch, float(correct) / total, float(current_lr)))
 
+        if args.save_dir is not None:
+            if epoch % 30 == 0:
+                save_path = os.path.join(args.save_dir, 'model-' + str(epoch) + '.pth')
+                torch.save(net.stat_dict(), save_path)
+
     if args.save_file is not None:
-        torch.save(net.state_dict(), args.save_file)
+        save_path = os.path.join(args.save_dir, 'model-last.pth')
+        torch.save(net.state_dict(), save_path)
 
 
     
