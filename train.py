@@ -38,7 +38,8 @@ def get_parser():
                         help='the name of config file')
     parser.add_argument('--weight_init', default=None, type=str, action='store',
                         help='the way to initialize the weights of network')
-
+    parser.add_argument('--print_loss', default=0, type=int, action='store',
+                        help='whether print training loss')
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
                         help='the initial learning rate')
@@ -108,10 +109,10 @@ def attention_model_training(args):
             optimizer.step()
 
             running_loss += loss.data[0]
-           
-             if i % 20 == 0:
-                print("Training Loss:", running_loss / 20)
-                running_loss = 0.0
+            if print_loss != 0:
+                if i % 20 == 0:
+                    print("Training Loss:", running_loss / 20)
+                    running_loss = 0.0
 
         '''Test Stage'''  
         correct = 0
