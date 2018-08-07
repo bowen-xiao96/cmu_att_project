@@ -108,8 +108,8 @@ def attention_model_training(args):
             optimizer.step()
 
             running_loss += loss.data[0]
-
-            if i % 20 == 0:
+           
+             if i % 20 == 0:
                 print("Training Loss:", running_loss / 20)
                 running_loss = 0.0
 
