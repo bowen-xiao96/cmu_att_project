@@ -109,7 +109,7 @@ def attention_model_training(args):
             optimizer.step()
 
             running_loss += loss.data[0]
-            if print_loss != 0:
+            if args.print_loss != 0:
                 if i % 20 == 0:
                     print("Training Loss:", running_loss / 20)
                     running_loss = 0.0
@@ -132,9 +132,10 @@ def attention_model_training(args):
         print("Epoch %d, Test accuracy: %f, lr=%f" % (epoch, float(correct) / total, float(current_lr)))
 
         if args.save_dir is not None:
+            os.system('mkdir -p %s' % args.save_dir) 
             if epoch % 30 == 0:
                 save_path = os.path.join(args.save_dir, 'model-' + str(epoch) + '.pth')
-                torch.save(net.stat_dict(), save_path)
+                torch.save(net.state_dict(), save_path)
 
     if args.save_file is not None:
         save_path = os.path.join(args.save_dir, 'model-last.pth')
