@@ -40,6 +40,9 @@ def get_parser():
                         help='the way to initialize the weights of network')
     parser.add_argument('--print_loss', default=0, type=int, action='store',
                         help='whether print training loss')
+    parser.add_argument('--grad_clip', default=0.0, type=float, action='store',
+                        help='whether do gradient clipping')
+
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
                         help='the initial learning rate')
@@ -107,6 +110,9 @@ def attention_model_training(args):
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+            
+            if args.grad_clip != 0:
+                nn.utils.clip_grad_norm(net.parameters(), args.grad_clip)
 
             running_loss += loss.data[0]
             if args.print_loss != 0:
