@@ -114,7 +114,7 @@ class AttentionNetwork(nn.Module):
 
                 # attention score map (do 1x1 convolution on the addition of feature map and the global feature)
                 score = self.attention[i][-1](feature_map + new_x.view(new_x.size(0), -1, 1, 1))
-                score = F.softmax(score)
+                score = F.softmax(score, dim=1)
 
                 # weighted sum the feature map
                 weighted_sum = torch.sum(torch.sum(score * feature_map, dim=3), dim=2)

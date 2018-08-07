@@ -143,7 +143,7 @@ def attention_model_training(args):
                 save_path = os.path.join(args.save_dir, 'model-' + str(epoch) + '.pth')
                 torch.save(net.state_dict(), save_path)
 
-    if args.save_file is not None:
+    if args.save_dir is not None:
         save_path = os.path.join(args.save_dir, 'model-last.pth')
         torch.save(net.state_dict(), save_path)
 
