@@ -2,4 +2,4 @@
 # no bn layer
 # contains attention layer
 
-python train.py --gpu 3 --init_lr 0.0001 --network_config vgg16_attention.cfg - 200 --save_dir ./models/
+python train.py --gpu 3 --init_lr 0.0001 --network_config vgg16_attention.cfg - 200 --save_dir ./models/vgg16_attention --data_path ./data/
