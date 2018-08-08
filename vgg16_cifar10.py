@@ -32,9 +32,9 @@ weight_decay = 1e-5
 
 # training
 batch_size = 256
-lr_decay_step = 30
+lr_decay_step = 25
 lr_decay_gamma = 0.1
-max_epoch = 100
+max_epoch = 50
 
 # model
 model_name = 'vgg16'
@@ -189,7 +189,7 @@ test_dataset = CIFAR10(
 )
 
 test_loader = DataLoader(
-    train_dataset,
+    test_dataset,
     batch_size=batch_size,
     shuffle=False,
     num_workers=0,
@@ -295,6 +295,7 @@ def test(epoch):
 
 def main():
     for i in range(max_epoch):
+        adjust_learning_rate(optimizer, i)
         train(i)
         test_acc = test(i)
 
