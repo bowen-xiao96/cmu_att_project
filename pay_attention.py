@@ -19,7 +19,7 @@ from utils import *
 
 
 class AttentionNetwork(nn.Module):
-    def __init__(self, cfg, num_class=10):
+    def __init__(self, cfg, args, num_class=10):
         
         super(AttentionNetwork, self).__init__()
 
@@ -82,14 +82,22 @@ class AttentionNetwork(nn.Module):
 
             
             self.att_fc = nn.Linear(sum(concat_dim), num_class)
-
+        
         # Initialize weights
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-                m.bias.data.zero_()
+        if args.init_weight == 'vgg':
+
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                    m.weight.data.normal_(0, math.sqrt(2. / n))
+                    m.bias.data.zero_()
+
+        elif args.init_weight == 'xavier':
+
+            for m in self.modules():
+                xavier_init(m)
+
 
     def forward(self, x):
         feature_maps = list()

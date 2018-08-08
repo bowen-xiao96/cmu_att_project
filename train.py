@@ -8,6 +8,7 @@ import copy
 import argparse
 import torch
 from torch.autograd import Variable
+import re
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -42,10 +43,14 @@ def get_parser():
                         help='whether print training loss')
     parser.add_argument('--grad_clip', default=0.0, type=float, action='store',
                         help='whether do gradient clipping')
+    parser.add_argument('--init_weight', default='vgg', type=str, action='store',
+                        help='How to initialize network weights')
 
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
                         help='the initial learning rate')
+    parser.add_argument('--adjust_lr', default=1, type=int, action='store',
+                        help='Whether adjust learning rate automatically')
     parser.add_argument('--lr_decay', default=0.5, type=float, action='store',
                         help='the rate of decaying learning rate')
     parser.add_argument('--lr_freq', default=30, type=int, action='store',
@@ -58,15 +63,17 @@ def attention_model_training(args):
 
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
 
-    net = AttentionNetwork(network_cfg)
+    net = AttentionNetwork(network_cfg, args)
     net.cuda()
     print(net)
     
     if args.weight_init == 'xavier':
         net.apply(xavier_init)
-
+    
+    start = 0
     if args.load_file is not None:
         net.load_state_dict(torch.load(args.load_file))
+        start = (int) ((re.findall(r"\d+", args.load_file))[-1])
 
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = optim.SGD(net.parameters(), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
@@ -94,9 +101,9 @@ def attention_model_training(args):
                                 batch_size=128, shuffle=False,
                                 num_workers=4, pin_memory=True)
 
-    for epoch in range(300):
-        
-        adjust_learning_rate(optimizer, epoch, args.init_lr, args.lr_decay, args.lr_freq)
+    for epoch in range(start, 300):
+        if args.adjust_lr == 1: 
+            adjust_learning_rate(optimizer, epoch, args.init_lr, args.lr_decay, args.lr_freq)
         '''Training Stage'''
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
