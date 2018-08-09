@@ -17,6 +17,8 @@ criterion_ = None
 max_epoch_ = None
 lr_sched_ = None
 
+call_back_ = None
+
 display_freq_ = None
 output_dir_ = None
 save_every_ = None
@@ -185,6 +187,9 @@ def main_loop():
     saved_models = list()
 
     for i in range(max_epoch_):
+        if call_back_:
+            call_back_(globals(), i)
+
         if lr_sched_:
             lr_sched_(optimizer_, i)
 

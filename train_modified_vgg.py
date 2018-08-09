@@ -15,9 +15,10 @@ cudnn.benchmark = True
 import Trainer
 from pay_attention import cfg, VGG16Modified, initialize_vgg, get_dataloader
 
-assert len(sys.argv) > 1
+assert len(sys.argv) > 2
 GPU_ID = int(sys.argv[1])
 os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+TAG = sys.argv[2]
 
 model = VGG16Modified(cfg, 10)
 initialize_vgg(model)
@@ -51,10 +52,10 @@ Trainer.start(
     train_dataloader=train_loader,
     test_dataloader=test_loader,
     criterion=criterion,
-    max_epoch=50,
+    max_epoch=100,
     lr_sched=lr_sched,
     display_freq=50,
-    output_dir='modified_vgg',
+    output_dir=TAG,
     save_every=5,
     max_keep=20
 )

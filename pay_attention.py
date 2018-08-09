@@ -45,7 +45,7 @@ class VGG16Modified(nn.Module):
 
 
 class AttentionNetwork(nn.Module):
-    def __init__(self, cfg, attention_layers, num_class):
+    def __init__(self, cfg, attention_layers, num_class, dropout=0.5):
         super(AttentionNetwork, self).__init__()
 
         # cfg: network structure (see above)
@@ -82,7 +82,10 @@ class AttentionNetwork(nn.Module):
             concat_dim.append(feature_dim)
 
         self.fc1 = nn.Linear(512, 512)
-        self.fc2 = nn.Linear(sum(concat_dim), num_class)
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Linear(sum(concat_dim), num_class)
+        )
 
     def forward(self, x):
         feature_maps = list()
@@ -113,7 +116,7 @@ class AttentionNetwork(nn.Module):
             weighted_sum = torch.sum(torch.sum(score * feature_map, dim=3), dim=2)
             features.append(weighted_sum)
 
-        return self.fc2(torch.cat(features, dim=1))
+        return self.classifier(torch.cat(features, dim=1))
 
 
 def initialize_vgg(model):

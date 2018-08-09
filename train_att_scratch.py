@@ -15,9 +15,10 @@ cudnn.benchmark = True
 import Trainer
 from pay_attention import cfg, AttentionNetwork, attention_layers, initialize_vgg, get_dataloader
 
-assert len(sys.argv) > 1
+assert len(sys.argv) > 2
 GPU_ID = int(sys.argv[1])
 os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+TAG = sys.argv[2]
 
 model = AttentionNetwork(cfg, attention_layers, 10)
 initialize_vgg(model)
@@ -33,7 +34,8 @@ init_lr = 1e-3
 
 optimizer = optim.Adam(
     model.parameters(),
-    lr=init_lr
+    lr=init_lr,
+    weight_decay=5e-5
 )
 
 Trainer.start(
@@ -42,10 +44,10 @@ Trainer.start(
     train_dataloader=train_loader,
     test_dataloader=test_loader,
     criterion=criterion,
-    max_epoch=50,
+    max_epoch=100,
     lr_sched=None,
     display_freq=50,
-    output_dir='att_scratch',
+    output_dir=TAG,
     save_every=5,
     max_keep=20
 )
