@@ -10,7 +10,6 @@ import torch.autograd as A
 import torch.optim as optim
 
 import torch.backends.cudnn as cudnn
-
 cudnn.benchmark = True
 
 import Trainer
@@ -30,7 +29,7 @@ train_loader, test_loader = get_dataloader(
 )
 
 criterion = nn.CrossEntropyLoss()
-init_lr = 0.01
+init_lr = 0.05
 
 optimizer = torch.optim.SGD(
     model.parameters(),

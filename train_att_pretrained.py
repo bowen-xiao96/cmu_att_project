@@ -10,7 +10,6 @@ import torch.autograd as A
 import torch.optim as optim
 
 import torch.backends.cudnn as cudnn
-
 cudnn.benchmark = True
 
 import Trainer

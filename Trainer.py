@@ -65,7 +65,7 @@ def accuracy(output, target, topk=(1,)):
 
 
 def start(**kwargs):
-    print('Initializing Trainer module...')
+    print('* Initializing Trainer module... *')
 
     for k, v in kwargs.items():
         print('%s: %s' % (k, v))
@@ -113,7 +113,7 @@ def train_one_epoch(epoch):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if (i + 1) % display_freq_ == 0:
+        if i % display_freq_ == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
@@ -160,6 +160,20 @@ def test(epoch):
     return top1.avg
 
 
+def save(i, test_accu, best=False):
+    if not best:
+        model_name = os.path.join(output_dir_, str(i) + '.pkl')
+    else:
+        model_name = os.path.join(output_dir_, 'best.pkl')
+
+    torch.save(
+        (i, test_accu, model_.state_dict()),  # saved data
+        model_name,
+        pickle_protocol=pickle.HIGHEST_PROTOCOL
+    )
+    return model_name
+
+
 def main_loop():
     if not os.path.exists(output_dir_):
         os.makedirs(output_dir_)
@@ -169,19 +183,6 @@ def main_loop():
 
     best_accu = -1.0
     saved_models = list()
-
-    def save(i, test_accu, best=False):
-        if not best:
-            model_name = os.path.join(output_dir_, str(i) + '.pkl')
-        else:
-            model_name = os.path.join(output_dir_, 'best.pkl')
-
-        torch.save(
-            (i, test_accu, model_.state_dict()),  # saved data
-            model_name,
-            pickle_protocol=pickle.HIGHEST_PROTOCOL
-        )
-        return model_name
 
     for i in range(max_epoch_):
         if lr_sched_:
@@ -195,7 +196,7 @@ def main_loop():
             best_accu = test_accu
             save(i, test_accu, best=True)
 
-        if save_every_ and (i + 1) % save_every_ == 0:
+        if save_every_ and i % save_every_ == 0:
             while len(saved_models) >= max_keep_:
                 old_model_file = saved_models.pop(0)
                 try:

@@ -10,17 +10,16 @@ import torch.autograd as A
 import torch.optim as optim
 
 import torch.backends.cudnn as cudnn
-
 cudnn.benchmark = True
 
 import Trainer
-from pay_attention import cfg, AttentionNetwork, initialize_vgg, get_dataloader
+from pay_attention import cfg, AttentionNetwork, attention_layers, initialize_vgg, get_dataloader
 
 assert len(sys.argv) > 1
 GPU_ID = int(sys.argv[1])
 os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
 
-model = AttentionNetwork(cfg, (20, ), 10)
+model = AttentionNetwork(cfg, attention_layers, 10)
 initialize_vgg(model)
 
 train_loader, test_loader = get_dataloader(
@@ -30,7 +29,7 @@ train_loader, test_loader = get_dataloader(
 )
 
 criterion = nn.CrossEntropyLoss()
-init_lr = 1e-5
+init_lr = 1e-3
 
 optimizer = optim.Adam(
     model.parameters(),
