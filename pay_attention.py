@@ -1,17 +1,47 @@
-import os, sys
+import math
 import numpy as np
-import pickle
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as A
 
-from torch.utils.data import dataloader, dataset
-from torchvision.transforms import transforms
+from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR10
+from torchvision import transforms
 
 cfg = [64, 64, 128, 128, 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M', 512, 'M', 512, 'M']
+
 attention_layers = [13, 20, 27]
+
+
+class VGG16Modified(nn.Module):
+    def __init__(self, cfg, num_class):
+        super(VGG16Modified, self).__init__()
+
+        backbone = list()
+        input_dim = 3
+        for v in cfg:
+            if v == 'M':
+                backbone.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            elif v == 'D':
+                backbone.append(nn.Dropout2d(p=0.4))
+            else:
+                backbone.append(nn.Conv2d(input_dim, v, kernel_size=3, padding=1))
+                backbone.append(nn.ReLU(inplace=True))
+                input_dim = v
+
+        self.backbone = nn.Sequential(*backbone)
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=0.6),
+            nn.Linear(512, num_class)
+        )
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
 
 
 class AttentionNetwork(nn.Module):
@@ -47,6 +77,7 @@ class AttentionNetwork(nn.Module):
 
             # attention scoring layer, implement as a 1x1 convolution
             m.append(nn.Conv2d(feature_dim, 1, kernel_size=1))
+
             self.attention.append(m)
             concat_dim.append(feature_dim)
 
@@ -57,6 +88,8 @@ class AttentionNetwork(nn.Module):
         feature_maps = list()
         for i, layer in enumerate(self.backbone):
             x = layer(x)
+
+            # after relu layer
             if i in self.attention_layers:
                 feature_maps.append(x)
 
@@ -81,3 +114,68 @@ class AttentionNetwork(nn.Module):
             features.append(weighted_sum)
 
         return self.fc2(torch.cat(features, dim=1))
+
+
+def initialize_vgg(model):
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            nn.init.normal(m.weight.data, mean=0.0, std=math.sqrt(2.0 / n))
+            nn.init.constant(m.bias.data, 0.0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant(m.weight.data, 1.0)
+            nn.init.constant(m.bias.data, 0.0)
+        elif isinstance(m, nn.Linear):
+            nn.init.normal(m.weight.data, mean=0.0, std=0.01)
+            nn.init.constant(m.bias.data, 0.0)
+
+
+def get_dataloader(cifar10_dir, batch_size, num_workers):
+    # creating dataset and dataloader
+    mean = np.array([0.49139968, 0.48215827, 0.44653124])
+    std = np.array([0.24703233, 0.24348505, 0.26158768])
+    normalize = transforms.Normalize(mean, std)
+
+    # during training, only random horizontal flip is used for augmentation
+    train_transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ])
+
+    train_dataset = CIFAR10(
+        cifar10_dir,
+        train=True,
+        transform=train_transform
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True
+    )
+
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        normalize
+    ])
+
+    test_dataset = CIFAR10(
+        cifar10_dir,
+        train=False,
+        transform=test_transform
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
+        drop_last=False
+    )
+
+    return train_loader, test_loader
