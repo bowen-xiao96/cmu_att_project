@@ -6,6 +6,7 @@ import pickle
 
 import torch
 import torch.autograd as A
+#import matplotlib.pyplot as plt
 
 # ========== state data ==========
 model_ = None
@@ -23,7 +24,13 @@ display_freq_ = None
 output_dir_ = None
 save_every_ = None
 max_keep_ = None
+save_model_data_ = None
 
+train_loss_history = []
+train_top1_history = []
+
+test_loss_history = []
+test_top1_history = []
 
 # ========== end state data ==========
 
@@ -125,12 +132,15 @@ def train_one_epoch(epoch):
                 epoch, i, len(train_dataloader_), batch_time=batch_time,
                 data_time=data_time, loss=losses, top1=top1, top5=top5))
 
+            train_loss_history.append(losses)
+            train_top1_history.append(top1)
+
     print('\t* Epoch: [{0}] TRAIN *\t'
           'Loss {loss.avg:.4f}\t'
           'Prec@1 {top1.avg:.3f}\t'
           'Prec@5 {top5.avg:.3f}\t'.format(
         epoch, loss=losses, top1=top1, top5=top5))
-
+    
 
 def test(epoch):
     losses = AverageMeter()
@@ -159,6 +169,9 @@ def test(epoch):
           'Prec@5 {top5.avg:.3f}\t'.format(
         epoch, loss=losses, top1=top1, top5=top5))
 
+    test_loss_history.append(losses)
+    test_top1_history.append(top1)
+
     return top1.avg
 
 
@@ -175,6 +188,45 @@ def save(i, test_accu, best=False):
     )
     return model_name
 
+'''
+def draw_figures():
+   plt.figure(1)
+   plt.subplot(211)
+   plt.title('Training Loss')
+   plt.legend(loc = 'best')
+   plt.xlabel(str(display_freq_) + ' Steps')
+   plt.ylabel('Loss')
+   plt.ylim((0, 1))
+   plt.plot(train_loss_history)
+
+   plt.subplot(212)
+   plt.title('Training Top1')
+   plt.legend(loc = 'best')
+   plt.xlabel(str(display_freq_) + ' Steps')
+   plt.ylabel('Loss')
+   plt.ylim((0, 1))
+   plt.plot(train_top1_history)
+   plt.savefig(os.path.join(save_model_data_, 'training.png'))
+
+
+   plt.figure(2)
+   plt.subplot(211)
+   plt.title('Test Loss')
+   plt.legend(loc = 'best')
+   plt.xlabel('Epochs')
+   plt.ylabel('Loss')
+   plt.ylim((0, 1))
+   plt.plot(test_loss_history)
+
+   plt.subplot(212)
+   plt.title('Test Top1')
+   plt.legend(loc = 'best')
+   plt.xlabel('Epochs')
+   plt.ylabel('Top1')
+   plt.ylim((0, 1))
+   plt.plot(test_top1_history)
+   plt.savefig(os.path.join(save_model_data_, 'test.png'))
+'''
 
 def main_loop():
     if not os.path.exists(output_dir_):
@@ -211,3 +263,8 @@ def main_loop():
 
             model_file = save(i, test_accu)
             saved_models.append(model_file)
+            #draw_figures()
+
+
+
+

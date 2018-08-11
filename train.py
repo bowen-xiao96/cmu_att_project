@@ -17,8 +17,9 @@ import torchvision
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torch.optim as optim
+import Trainer
 
-from pay_attention import AttentionNetwork
+from model_builder import AttentionNetwork
 from utils import *
 
 def get_parser():
@@ -27,12 +28,16 @@ def get_parser():
     # General settings
     parser.add_argument('--gpu', default=None, type=str, action='store',
                         help='the id of gpu')
-    parser.add_argument('--save_dir', default=None, type=str, action='store',
-                        help='the directory of saving the model')
+    parser.add_argument('--expId', default=None, type=str, action='store',
+                        help='the ID of experiment')
+    parser.add_argument('--save_dir', default='/data2/simingy/model/', type=str, action='store',
+                        help='the master directory of saving the model')
     parser.add_argument('--load_file', default=None, type=str, action='store',
                         help='the name of file loading the model')
     parser.add_argument('--data_path', default='/mnt/fs1/siming/data/', type=str, action='store',
                         help='the path of loading data')
+    parser.add_argument('--save_att_map', default=0, type=int, action='store',
+                        help='whether save attention map')
 
     # Network settings
     parser.add_argument('--network_config', default=None, type=str, action='store',
@@ -58,25 +63,34 @@ def get_parser():
                         help='the rate of decaying learning rate')
     parser.add_argument('--lr_freq', default=30, type=int, action='store',
                         help='the internal to decay the learning rate')
+    parser.add_argument('--optim', default=0, type=int, action='store',
+                        help='which optimizer 0: SGD, 1: Adam')
+
 
     return parser
+
 
 def attention_model_training(args):
     
 
     # Build Model
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
-
     net = AttentionNetwork(network_cfg, args)
-    net.cuda()
-    print(net)
-    criterion = nn.CrossEntropyLoss().cuda()
+    
+    # Initialize weights
+    if args.init_weight == 'vgg':
+        vgg_init(net) 
+    elif args.init_weight == 'xavier':
+        xavier_init(net)
+
+    # Loss function
+    criterion = nn.CrossEntropyLoss()
         
     start = 0
 
     # Load File
     if args.load_file is not None:
-        pretrained_dict = torch.load(args.load_file)
+        pretrained_dict = torch.load(args.load_file)[-1]
         net_dict = net.state_dict()
         net_list = list(net.state_dict().keys())
         pre_list = list(pretrained_dict.keys())
@@ -93,89 +107,34 @@ def attention_model_training(args):
         net.load_state_dict(net_dict)
         start = (int) ((re.findall(r"\d+", args.load_file))[-1])
 
+    # Optimizer
+    if args.optim == 0:
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
+    elif args.optim == 1:
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-5)
 
-
-    optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
 
     # Import Dataset
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    train_loader, test_loader = get_dataloader(
+        cifar10_dir=args.data_path,
+        batch_size=256,
+        num_workers=4,
+    )
     
-    trainloader = torch.utils.data.DataLoader(
-                    datasets.CIFAR10(root=args.data_path, train=True, transform=transforms.Compose([
-                                transforms.RandomHorizontalFlip(),
-                                transforms.RandomCrop(32, 4),
-                                transforms.ToTensor(),
-                                normalize,
-                                ]), download=True),
-                                batch_size=128, shuffle=True,
-                                num_workers=4, pin_memory=True)
-
-    testloader = torch.utils.data.DataLoader(
-                    datasets.CIFAR10(root=args.data_path, train=False, transform=transforms.Compose([
-                                transforms.ToTensor(),
-                                normalize,
-                                ])),
-                                batch_size=128, shuffle=False,
-                                num_workers=4, pin_memory=True)
-    
-    # Training
-    for epoch in range(start, 300):
-
-        if args.adjust_lr == 1: 
-            adjust_learning_rate(optimizer, epoch, args.init_lr, args.lr_decay, args.lr_freq)
-
-        '''Training Stage'''
-        running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            inputs, labels = data
-        
-            inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
-
-            optimizer.zero_grad()
-
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            
-            if args.grad_clip != 0:
-                nn.utils.clip_grad_norm(net.parameters(), args.grad_clip)
-
-            running_loss += loss.data[0]
-            if args.print_loss != 0:
-                if i % 20 == 0:
-                    print("Training Loss:", running_loss / 20)
-                    running_loss = 0.0
-
-        '''Test Stage'''  
-        correct = 0
-        total = 0
-        for data in testloader:
-            images, labels = data
-            outputs = net(Variable(images.cuda()))
-            labels = Variable(labels.cuda())
-            _, predicted = torch.max(outputs.data, 1)
-
-            total += labels.size(0)
-            correct += (predicted == labels.data).sum()
-
-        for param_group in optimizer.param_groups:
-            current_lr = param_group['lr']
-
-        print("Epoch %d, Test accuracy: %f, lr=%f" % (epoch, float(correct) / total, float(current_lr)))
-
-        if args.save_dir is not None:
-            os.system('mkdir -p %s' % args.save_dir) 
-            if epoch % 30 == 0:
-                save_path = os.path.join(args.save_dir, 'model-' + str(epoch) + '.pth')
-                torch.save(net.state_dict(), save_path)
-
-    if args.save_dir is not None:
-        save_path = os.path.join(args.save_dir, 'model-last.pth')
-        torch.save(net.state_dict(), save_path)
-
-
+    Trainer.start(
+            model=net,
+            optimizer=optimizer,
+            train_dataloader=train_loader,
+            test_dataloader=test_loader,
+            criterion=criterion,
+            max_epoch=300,
+            lr_sched=None,
+            display_freq=50,
+            output_dir=args.save_dir+args.expId,
+            save_every=20,
+            max_keep=20,
+            save_model_data='/data2/simingy/model_data/'+args.expId
+        )           
     
 def main():
     parser = get_parser()

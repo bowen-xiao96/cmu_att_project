@@ -1,7 +1,9 @@
 import os, sys
 import numpy as np
-
+import math
 import cPickle
+from PIL import Image
+from matplotlib import cm
 
 import json
 import copy
@@ -15,29 +17,62 @@ import torch.autograd as A
 
 import torchvision
 import torchvision.transforms as transforms
+from torchvision.datasets import CIFAR10
+from torch.utils.data import DataLoader
 
+def get_dataloader(cifar10_dir, batch_size, num_workers):
+    # creating dataset and dataloader
+    mean = np.array([0.49139968, 0.48215827, 0.44653124])
+    std = np.array([0.24703233, 0.24348505, 0.26158768])
+    normalize = transforms.Normalize(mean, std)
 
-class AverageMeter(object):
+    # during training, only random horizontal flip is used for augmentation
+    train_transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(32, 4),
+        transforms.ToTensor(),
+        normalize
+    ])
 
-    def __init__(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
+    train_dataset = CIFAR10(
+        cifar10_dir,
+        train=True,
+        transform=train_transform
+    )
 
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-    
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True
+    )
 
-def xavier_init(m):
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        normalize
+    ])
+
+    test_dataset = CIFAR10(
+        cifar10_dir,
+        train=False,
+        transform=test_transform
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
+        drop_last=False
+    )
+
+    return train_loader, test_loader
+
+def xavier_init(model):
+    for m in model.modules():
         if isinstance(m, nn.Conv2d):
             nn.init.xavier_uniform(m.weight)
             m.bias.data.zero_()
@@ -47,6 +82,19 @@ def xavier_init(m):
         elif isinstance(m, nn.Linear):
             nn.init.xavier_uniform(m.weight)
             m.bias.data.fill_(0.01)
+
+def vgg_init(model):
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            nn.init.normal(m.weight.data, mean=0.0, std=math.sqrt(2.0 / n))
+            nn.init.constant(m.bias.data, 0.0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant(m.weight.data, 1.0)
+            nn.init.constant(m.bias.data, 0.0)
+        elif isinstance(m, nn.Linear):
+            nn.init.normal(m.weight.data, mean=0.0, std=0.01)
+            nn.init.constant(m.bias.data, 0.0)
 
 def postprocess_config(cfg):
     cfg = copy.deepcopy(cfg)
@@ -122,4 +170,24 @@ def getAttentionLayer(cfg):
 def getDepth(cfg):
     return cfg['depth']
 
+def get_jet():
+    colormap_int = np.zeros((256, 3), np.uint8)
+    colormap_float = np.zeros((256, 3), np.float)
+                
+    for i in range(0, 256, 1):
+        colormap_int[i, 0] = np.uint8(np.round(cm.jet(i)[0] * 255.0))
+        colormap_int[i, 1] = np.uint8(np.round(cm.jet(i)[1] * 255.0))
+        colormap_int[i, 2] = np.uint8(np.round(cm.jet(i)[2] * 255.0))
+                                                    
+    return colormap_int
 
+def gray2color(gray_array, color_map):
+    rows, cols = gray_array.shape
+    color_array = np.zeros((rows, cols, 3), dtype=np.uint8)
+                
+    for i in range(0, rows):
+        for j in range(0, cols):
+            color_array[i, j] = color_map[gray_array[i, j]]
+                                                    
+    color_image = Image.fromarray(color_array)
+    return color_image
