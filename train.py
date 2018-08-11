@@ -50,7 +50,7 @@ def get_parser():
                         help='whether do gradient clipping')
     parser.add_argument('--init_weight', default='vgg', type=str, action='store',
                         help='How to initialize network weights')
-    parser.add_argument('--fix_load_weight', default=1, type=int, action='store',
+    parser.add_argument('--fix_load_weight', default=0, type=int, action='store',
                         help='whethter fix the loaded weights')
 
 
