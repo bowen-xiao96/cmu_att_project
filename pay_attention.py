@@ -24,8 +24,6 @@ class VGG16Modified(nn.Module):
         for v in cfg:
             if v == 'M':
                 backbone.append(nn.MaxPool2d(kernel_size=2, stride=2))
-            elif v == 'D':
-                backbone.append(nn.Dropout2d(p=0.4))
             else:
                 backbone.append(nn.Conv2d(input_dim, v, kernel_size=3, padding=1))
                 backbone.append(nn.ReLU(inplace=True))
@@ -45,7 +43,7 @@ class VGG16Modified(nn.Module):
 
 
 class AttentionNetwork(nn.Module):
-    def __init__(self, cfg, attention_layers, num_class, dropout=0.5):
+    def __init__(self, cfg, attention_layers, num_class, dropout=0.6):
         super(AttentionNetwork, self).__init__()
 
         # cfg: network structure (see above)
@@ -110,7 +108,10 @@ class AttentionNetwork(nn.Module):
 
             # attention score map (do 1x1 convolution on the addition of feature map and the global feature)
             score = self.attention[i][-1](feature_map + new_x.view(new_x.size(0), -1, 1, 1))
-            score = F.softmax(score, dim=1)
+            old_shape = score.size()
+            score = F.softmax(
+                score.view(old_shape[0], -1), dim=1
+            ).view(old_shape)
 
             # weighted sum the feature map
             weighted_sum = torch.sum(torch.sum(score * feature_map, dim=3), dim=2)
