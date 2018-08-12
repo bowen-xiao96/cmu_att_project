@@ -90,7 +90,11 @@ def attention_model_training(args):
 
     # Load File
     if args.load_file is not None:
-        pretrained_dict = torch.load(args.load_file)[-1]
+        prefix = (args.load_file).split('.')[-1]
+        if prefix == 'pth':
+            pretrained_dict = torch.load(args.load_file)
+        elif prefix == 'pkl':
+            pretrained_dict = torch.load(args.load_file)[-1]
         net_dict = net.state_dict()
         net_list = list(net.state_dict().keys())
         pre_list = list(pretrained_dict.keys())

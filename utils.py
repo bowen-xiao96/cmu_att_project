@@ -92,9 +92,9 @@ def vgg_init(model):
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant(m.weight.data, 1.0)
             nn.init.constant(m.bias.data, 0.0)
-        elif isinstance(m, nn.Linear):
-            nn.init.normal(m.weight.data, mean=0.0, std=0.01)
-            nn.init.constant(m.bias.data, 0.0)
+        #elif isinstance(m, nn.Linear):
+        #    nn.init.normal(m.weight.data, mean=0.0, std=0.01)
+        #    nn.init.constant(m.bias.data, 0.0)
 
 def postprocess_config(cfg):
     cfg = copy.deepcopy(cfg)
