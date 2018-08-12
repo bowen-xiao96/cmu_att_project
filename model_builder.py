@@ -67,7 +67,9 @@ class AttentionNetwork(nn.Module):
 
             
             if getFC(i, cfg):
-                output_dim, dropout_rate, output = getFCSetting(i, cfg)
+                input_, output_dim, dropout_rate, output = getFCSetting(i, cfg)
+                if input_ != 0:
+                    input_dim = input_
                 self.fclayers.append(nn.Linear(input_dim, output_dim))
                 if output != 1:
                     self.fclayers.append(nn.ReLU(inplace=True))

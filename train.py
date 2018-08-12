@@ -38,10 +38,14 @@ def get_parser():
                         help='the path of loading data')
     parser.add_argument('--save_att_map', default=0, type=int, action='store',
                         help='whether save attention map')
+    parser.add_argument('--task', default='cifar10', type=str, action='store',
+                        help='the dataset task')
 
     # Network settings
     parser.add_argument('--network_config', default=None, type=str, action='store',
                         help='the name of config file')
+    parser.add_argument('--batch_size', default=256, type=int, action='store',
+                        help='batch size')
     parser.add_argument('--weight_init', default=None, type=str, action='store',
                         help='the way to initialize the weights of network')
     parser.add_argument('--print_loss', default=0, type=int, action='store',
@@ -74,9 +78,17 @@ def attention_model_training(args):
     
 
     # Build Model
+
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
-    net = AttentionNetwork(network_cfg, args)
-    
+    if args.task == 'cifar10':
+        net = AttentionNetwork(network_cfg, args)
+    elif args.task == 'imagenet':
+        net = AttentionNetwork(network_cfg, args, num_class=1000)
+
+
+    if torch.cuda.device_count() > 1:
+        net = nn.DataParallel(net)
+    net.cuda()
     # Initialize weights
     if args.init_weight == 'vgg':
         vgg_init(net) 
@@ -84,7 +96,7 @@ def attention_model_training(args):
         xavier_init(net)
 
     # Loss function
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss().cuda()
         
     start = 0
 
@@ -116,14 +128,20 @@ def attention_model_training(args):
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
     elif args.optim == 1:
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-5)
-
-
+    
     # Import Dataset
-    train_loader, test_loader = get_dataloader(
-        cifar10_dir=args.data_path,
-        batch_size=256,
-        num_workers=4,
-    )
+    if args.task == 'cifar10':
+        train_loader, test_loader = get_dataloader(
+            cifar10_dir=args.data_path,
+            batch_size=args.batch_size,
+            num_workers=4,
+        )
+    elif args.task =='imagenet':
+        train_loader, test_loader = get_Imagenetloader(
+            imn_dir=args.data_path,
+            batch_size=args.batch_size,
+            num_workers=4,
+        )
     
     Trainer.start(
             model=net,
@@ -144,8 +162,8 @@ def main():
     parser = get_parser()
 
     args = parser.parse_args()
-
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    if args.gpu is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     attention_model_training(args)
 

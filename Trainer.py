@@ -6,6 +6,7 @@ import pickle
 
 import torch
 import torch.autograd as A
+import torch.nn as nn
 #import matplotlib.pyplot as plt
 
 # ========== state data ==========
@@ -188,52 +189,12 @@ def save(i, test_accu, best=False):
     )
     return model_name
 
-'''
-def draw_figures():
-   plt.figure(1)
-   plt.subplot(211)
-   plt.title('Training Loss')
-   plt.legend(loc = 'best')
-   plt.xlabel(str(display_freq_) + ' Steps')
-   plt.ylabel('Loss')
-   plt.ylim((0, 1))
-   plt.plot(train_loss_history)
-
-   plt.subplot(212)
-   plt.title('Training Top1')
-   plt.legend(loc = 'best')
-   plt.xlabel(str(display_freq_) + ' Steps')
-   plt.ylabel('Loss')
-   plt.ylim((0, 1))
-   plt.plot(train_top1_history)
-   plt.savefig(os.path.join(save_model_data_, 'training.png'))
-
-
-   plt.figure(2)
-   plt.subplot(211)
-   plt.title('Test Loss')
-   plt.legend(loc = 'best')
-   plt.xlabel('Epochs')
-   plt.ylabel('Loss')
-   plt.ylim((0, 1))
-   plt.plot(test_loss_history)
-
-   plt.subplot(212)
-   plt.title('Test Top1')
-   plt.legend(loc = 'best')
-   plt.xlabel('Epochs')
-   plt.ylabel('Top1')
-   plt.ylim((0, 1))
-   plt.plot(test_top1_history)
-   plt.savefig(os.path.join(save_model_data_, 'test.png'))
-'''
 
 def main_loop():
+
     if not os.path.exists(output_dir_):
         os.makedirs(output_dir_)
 
-    model_.cuda()
-    criterion_.cuda()
 
     best_accu = -1.0
     saved_models = list()

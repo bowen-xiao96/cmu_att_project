@@ -18,6 +18,7 @@ import torch.autograd as A
 import torchvision
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
+from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 
 def get_dataloader(cifar10_dir, batch_size, num_workers):
@@ -70,6 +71,56 @@ def get_dataloader(cifar10_dir, batch_size, num_workers):
     )
 
     return train_loader, test_loader
+
+def get_Imagenetloader(imn_dir, batch_size, num_workers):
+    # creating dataset and dataloader
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(mean, std)
+    
+    # during training, only random horizontal flip is used for augmentation
+    train_transform = transforms.Compose([
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize
+    ])
+
+    train_dataset = ImageFolder(
+        os.path.join(imn_dir, 'train'),
+        transform=train_transform
+    )
+    
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        sampler=None
+    )
+
+    val_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Scale(256),
+        transforms.CenterCrop(224),
+        normalize
+    ])
+
+    val_dataset = ImageFolder(
+        os.path.join(imn_dir, 'val'),
+        transform=val_transform
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+    return train_loader, val_loader
 
 def xavier_init(model):
     for m in model.modules():
@@ -130,12 +181,15 @@ def getFCSetting(i, cfg, layer_name='layers'):
     output_dim = cfg[layer_name][i]['fc']['num_features']
     dropout = 0
     whether_output = 0
+    input_ = 0
     if 'dropout' in cfg[layer_name][i]['fc']:
         dropout = cfg[layer_name][i]['fc']['dropout']
     if 'output' in cfg[layer_name][i]['fc']:
         whether_output = cfg[layer_name][i]['fc']['output']
+    if 'input' in cfg[layer_name][i]['fc']:
+        input_ = cfg[layer_name][i]['fc']['input']
 
-    return output_dim, dropout, whether_output
+    return input_, output_dim, dropout, whether_output
 
 def getBN(i, cfg, layer_name='layers'):
     ret_val = False
