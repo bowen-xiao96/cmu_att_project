@@ -1,3 +1,4 @@
+import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -32,6 +33,10 @@ if __name__ == '__main__':
     size = 32
     padding = 10
     color_map = get_jet()
+    save_dir = 'score_map_visualize'
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     for flag in ('train', 'test'):
         data = np.load(flag + '.npz')
@@ -47,4 +52,4 @@ if __name__ == '__main__':
                 output_img[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = \
                     gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
 
-            Image.fromarray(output_img, mode='RGB').save('%s_%d.png' % (flag, i))
+            Image.fromarray(output_img, mode='RGB').save(os.path.join(save_dir, '%s_%d.png' % (flag, i)))

@@ -15,8 +15,8 @@ cfg = [64, 64, 128, 128, 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 
 attention_layers = [13, 20, 27]
 
 
-class VGG16Modified(nn.Module):
-    def __init__(self, cfg, num_class):
+class VGG16Modified(nn.Module)  :
+    def __init__(self, cfg, num_class, dropout=0.5):
         super(VGG16Modified, self).__init__()
 
         backbone = list()
@@ -31,7 +31,9 @@ class VGG16Modified(nn.Module):
 
         self.backbone = nn.Sequential(*backbone)
         self.classifier = nn.Sequential(
-            nn.Dropout(p=0.6),
+            nn.Linear(512, 512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=dropout),
             nn.Linear(512, num_class)
         )
 
@@ -43,7 +45,7 @@ class VGG16Modified(nn.Module):
 
 
 class AttentionNetwork(nn.Module):
-    def __init__(self, cfg, attention_layers, num_class, dropout=0.6):
+    def __init__(self, cfg, attention_layers, num_class, dropout=0.5):
         super(AttentionNetwork, self).__init__()
 
         # cfg: network structure (see above)
@@ -128,9 +130,6 @@ def initialize_vgg(model):
             nn.init.constant(m.bias.data, 0.0)
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant(m.weight.data, 1.0)
-            nn.init.constant(m.bias.data, 0.0)
-        elif isinstance(m, nn.Linear):
-            nn.init.normal(m.weight.data, mean=0.0, std=0.01)
             nn.init.constant(m.bias.data, 0.0)
 
 

@@ -153,7 +153,7 @@ def test(epoch):
         top1.update(prec1.data[0], x.size(0))
         top5.update(prec5.data[0], x.size(0))
 
-    print('\t* Epoch: [{0}] TEST *\t'
+    print('\t* Epoch: [{0}] TEST  *\t'
           'Loss {loss.avg:.4f}\t'
           'Prec@1 {top1.avg:.3f}\t'
           'Prec@5 {top5.avg:.3f}\t'.format(

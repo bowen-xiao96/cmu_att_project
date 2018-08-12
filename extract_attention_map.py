@@ -57,7 +57,7 @@ if __name__ == '__main__':
     ])
 
     size = 32
-    sample_count = 50
+    sample_count = 200
     cifar10_dir = '/data2/bowenx/attention/cifar'
 
     model_path = r'/data2/bowenx/attention/cifar/attention/best.pkl'

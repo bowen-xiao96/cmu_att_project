@@ -41,7 +41,7 @@ optimizer = torch.optim.SGD(
 
 
 def lr_sched(optimizer, epoch):
-    lr = init_lr * (0.1 ** (epoch // 10))
+    lr = init_lr * (0.5 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -52,10 +52,10 @@ Trainer.start(
     train_dataloader=train_loader,
     test_dataloader=test_loader,
     criterion=criterion,
-    max_epoch=100,
+    max_epoch=180,
     lr_sched=lr_sched,
     display_freq=50,
     output_dir=TAG,
-    save_every=5,
+    save_every=20,
     max_keep=20
 )
