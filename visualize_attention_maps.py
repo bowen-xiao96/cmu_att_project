@@ -30,26 +30,50 @@ def gray2color(gray_array, color_map):
 
 
 if __name__ == '__main__':
-    size = 32
-    padding = 10
+    # size = 32
+    # padding = 10
+    # color_map = get_jet()
+    # save_dir = 'score_map_visualize'
+    #
+    # if not os.path.exists(save_dir):
+    #     os.makedirs(save_dir)
+    #
+    # for flag in ('train', 'test'):
+    #     data = np.load(flag + '.npz')
+    #     images, score_maps = data['images'], data['score_maps']
+    #
+    #     for i in range(images.shape[0]):
+    #         image = images[i]
+    #
+    #         output_img = np.zeros((size, size * 4 + padding * 3, 3), dtype=np.uint8)
+    #         output_img[:, :size, :] = image
+    #
+    #         for j in range(3):
+    #             output_img[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = \
+    #                 gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
+    #
+    #         Image.fromarray(output_img, mode='RGB').save(os.path.join(save_dir, '%s_%d.png' % (flag, i)))
+
+    size = 224
+    padding = 20
     color_map = get_jet()
-    save_dir = 'score_map_visualize'
+    save_dir = 'imagenet_visualize'
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    for flag in ('train', 'test'):
-        data = np.load(flag + '.npz')
-        images, score_maps = data['images'], data['score_maps']
+    data = np.load('imagenet.npz')
+    images, score_maps = data['images'], data['score_maps']
+    score_maps = np.minimum(score_maps * 500, 1.0)
 
-        for i in range(images.shape[0]):
-            image = images[i]
+    for i in range(images.shape[0]):
+        image = images[i]
 
-            output_img = np.zeros((size, size * 4 + padding * 3, 3), dtype=np.uint8)
-            output_img[:, :size, :] = image
+        output_img = np.zeros((size, size * 4 + padding * 3, 3), dtype=np.uint8)
+        output_img[:, :size, :] = image
 
-            for j in range(3):
-                output_img[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = \
-                    gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
+        for j in range(3):
+            output_img[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = \
+                gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
 
-            Image.fromarray(output_img, mode='RGB').save(os.path.join(save_dir, '%s_%d.png' % (flag, i)))
+        Image.fromarray(output_img, mode='RGB').save(os.path.join(save_dir, '%d.png' % i))
