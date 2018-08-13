@@ -64,7 +64,9 @@ if __name__ == '__main__':
 
     data = np.load('imagenet.npz')
     images, score_maps = data['images'], data['score_maps']
-    score_maps = np.minimum(score_maps * 500, 1.0)
+    score_maps = np.log(score_maps)
+    score_maps -= np.min(score_maps)
+    score_maps /= np.max(score_maps)
 
     for i in range(images.shape[0]):
         image = images[i]

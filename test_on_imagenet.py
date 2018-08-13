@@ -105,7 +105,7 @@ if __name__ == '__main__':
     for i in range(batch_count):
         images = all_images[i * batch_size: (i + 1) * batch_size]
         images = A.Variable(
-            torch.cat([transform(img).unsqueeze(dim=0) for img in images], dim=0).cuda()
+            torch.stack([transform(img) for img in images]).cuda()
         )
 
         # get score map
