@@ -101,10 +101,10 @@ def train_one_epoch(epoch):
         loss = criterion_(pred, y)
 
         # measure accuracy and record loss
-        prec1, prec5 = accuracy(pred, y, topk=(1, 5))
+        prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
         losses.update(loss.data[0], x.size(0))
-        top1.update(prec1.data[0], x.size(0))
-        top5.update(prec5.data[0], x.size(0))
+        top1.update(prec1[0], x.size(0))
+        top5.update(prec5[0], x.size(0))
 
         # compute gradient and do SGD step
         optimizer_.zero_grad()
@@ -148,10 +148,10 @@ def test(epoch):
         loss = criterion_(pred, y)
 
         # measure accuracy and record loss
-        prec1, prec5 = accuracy(pred, y, topk=(1, 5))
+        prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
         losses.update(loss.data[0], x.size(0))
-        top1.update(prec1.data[0], x.size(0))
-        top5.update(prec5.data[0], x.size(0))
+        top1.update(prec1[0], x.size(0))
+        top5.update(prec5[0], x.size(0))
 
     print('\t* Epoch: [{0}] TEST  *\t'
           'Loss {loss.avg:.4f}\t'
