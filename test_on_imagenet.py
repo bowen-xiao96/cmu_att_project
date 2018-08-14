@@ -104,16 +104,12 @@ if __name__ == '__main__':
 
     for i in range(batch_count):
         images = all_images[i * batch_size: (i + 1) * batch_size]
-        images = A.Variable(
-            torch.stack([transform(img) for img in images]).cuda()
-        )
+        images = A.Variable(torch.stack([transform(img) for img in images]).cuda())
 
         # get score map
         score_maps.append(extract_attention_maps(model, images))
 
     score_maps = np.concatenate(score_maps, axis=0)
-    all_images = np.concatenate(
-        [np.expand_dims(np.array(img), axis=0) for img in all_images], axis=0
-    )
+    all_images = np.stack([np.array(img) for img in all_images])
 
     np.savez('imagenet.npz', images=all_images, score_maps=score_maps)

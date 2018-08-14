@@ -140,8 +140,8 @@ def test(epoch):
     model_.eval()
 
     for x, y in test_dataloader_:
-        x = A.Variable(x.cuda())
-        y = A.Variable(y.cuda())
+        x = A.Variable(x.cuda(), volatile=True)
+        y = A.Variable(y.cuda(), volatile=True)
 
         # compute output
         pred = model_(x)
@@ -179,9 +179,6 @@ def save(i, test_accu, best=False):
 def main_loop():
     if not os.path.exists(output_dir_):
         os.makedirs(output_dir_)
-
-    model_.cuda()
-    criterion_.cuda()
 
     best_accu = -1.0
     saved_models = list()

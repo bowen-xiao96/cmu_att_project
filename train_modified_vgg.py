@@ -22,6 +22,7 @@ TAG = sys.argv[2]
 
 model = VGG16Modified(cfg, 10)
 initialize_vgg(model)
+model.cuda()
 
 train_loader, test_loader = get_dataloader(
     '/data2/bowenx/attention/cifar',
@@ -30,6 +31,7 @@ train_loader, test_loader = get_dataloader(
 )
 
 criterion = nn.CrossEntropyLoss()
+criterion.cuda()
 init_lr = 0.05
 
 optimizer = torch.optim.SGD(

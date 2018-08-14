@@ -15,7 +15,7 @@ cfg = [64, 64, 128, 128, 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 
 attention_layers = [13, 20, 27]
 
 
-class VGG16Modified(nn.Module)  :
+class VGG16Modified(nn.Module):
     def __init__(self, cfg, num_class, dropout=0.5):
         super(VGG16Modified, self).__init__()
 
@@ -131,6 +131,8 @@ def initialize_vgg(model):
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant(m.weight.data, 1.0)
             nn.init.constant(m.bias.data, 0.0)
+
+        # leave fc layers default initialized
 
 
 def get_dataloader(cifar10_dir, batch_size, num_workers):
