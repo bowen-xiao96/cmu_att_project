@@ -38,7 +38,8 @@ def get_dataloader(cifar10_dir, batch_size, num_workers):
     train_dataset = CIFAR10(
         cifar10_dir,
         train=True,
-        transform=train_transform
+        transform=train_transform,
+        download=True,
     )
 
     train_loader = DataLoader(
@@ -58,7 +59,8 @@ def get_dataloader(cifar10_dir, batch_size, num_workers):
     test_dataset = CIFAR10(
         cifar10_dir,
         train=False,
-        transform=test_transform
+        transform=test_transform,
+        download=True,
     )
 
     test_loader = DataLoader(
@@ -142,9 +144,6 @@ def vgg_init(model):
             nn.init.constant(m.bias.data, 0.0)
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.constant(m.weight.data, 1.0)
-            nn.init.constant(m.bias.data, 0.0)
-        elif isinstance(m, nn.Linear):
-            nn.init.normal(m.weight.data, mean=0.0, std=0.01)
             nn.init.constant(m.bias.data, 0.0)
 
 def postprocess_config(cfg):
