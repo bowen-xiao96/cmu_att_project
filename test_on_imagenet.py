@@ -103,7 +103,7 @@ def extract_attention_maps(model, x, size=(224, 224)):
         x = layer(x)
 
         # after relu layer
-        if i in [27]:
+        if i in [13]:
             feature_maps.append(x)
 
     # global feature
@@ -139,7 +139,8 @@ if __name__ == '__main__':
 
     parser = get_parser()
     args = parser.parse_args()
-    
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+
     mean = np.array([0.49139968, 0.48215827, 0.44653124])
     std = np.array([0.24703233, 0.24348505, 0.26158768])
     normalize = transforms.Normalize(mean, std)
@@ -151,7 +152,7 @@ if __name__ == '__main__':
     
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
 
-    model_path = '/mnt/fs1/chengxuz/siming/model/vgg16_attention_recurrent_last/best.pkl'
+    model_path = '/mnt/fs1/chengxuz/siming/model/vgg16_attention_recurrent_first/best.pkl'
     _, _, pretrained_dict = torch.load(model_path)
     model = AttentionNetwork(network_cfg, args)
     model_dict = model.state_dict()
