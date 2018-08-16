@@ -18,6 +18,9 @@ criterion_ = None
 
 max_epoch_ = None
 lr_sched_ = None
+init_lr_ = None
+lr_decay_ = None
+lr_freq_ = None
 
 call_back_ = None
 
@@ -124,14 +127,17 @@ def train_one_epoch(epoch):
         end = time.time()
 
         if i % display_freq_ == 0:
+            for param_group in optimizer_.param_groups:
+                current_lr = param_group['lr']
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f}\t'
+                  'Learning Rate {current_lr:.6f})'.format(
                 epoch, i, len(train_dataloader_), batch_time=batch_time,
-                data_time=data_time, loss=losses, top1=top1, top5=top5))
+                data_time=data_time, loss=losses, top1=top1, top5=top5, current_lr=current_lr))
 
             train_loss_history.append(losses)
             train_top1_history.append(top1)
@@ -204,7 +210,7 @@ def main_loop():
             call_back_(globals(), i)
 
         if lr_sched_:
-            lr_sched_(optimizer_, i)
+            lr_sched_(optimizer_, i, init_lr=init_lr_, lr_decay=lr_decay_, lr_freq=lr_freq_)
 
         train_one_epoch(i)
         test_accu = test(i)

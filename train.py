@@ -151,7 +151,7 @@ def attention_model_training(args):
 
     if args.print_fe == 1:
         train_it_one(net, criterion, optimizer)
-        print("****************************************************************")
+        print("------I am boundary-------")
         test_it(net, criterion, optimizer)
     else:
         Trainer.start(
@@ -161,7 +161,10 @@ def attention_model_training(args):
                 test_dataloader=test_loader,
                 criterion=criterion,
                 max_epoch=300,
-                lr_sched=None,
+                lr_sched=adjust_learning_rate,
+                init_lr= args.init_lr,
+                lr_decay = args.lr_decay,
+                lr_freq = args.lr_freq,
                 display_freq=50,
                 output_dir=args.save_dir+args.expId,
                 save_every=20,
