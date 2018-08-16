@@ -36,7 +36,11 @@ class AttentionNetwork(nn.Module):
         # attention_layers: index of layers to be used to calculate attention
         # num_class: number of classification categories
         self.attention_layers = getAttentionLayer(cfg)
+
+
+        # Attention Recurrent model
         self.att_r_layers = getAtt_Recurrent(cfg)
+        self.att_channel = args.att_channel
         
         # the path to save feature map, attention map, origin image
         self.save_att_map = args.save_att_map
@@ -102,7 +106,7 @@ class AttentionNetwork(nn.Module):
                 self.att_recurrent_b.append(m)
                 
                 match_dim = nn.Sequential(
-                        nn.Conv2d(feature_dim + 1, feature_dim, kernel_size=3, padding=1),
+                        nn.Conv2d(feature_dim + self.att_channel, feature_dim, kernel_size=3, padding=1),
                         nn.ReLU(inplace=True)
                         )
                 self.att_recurrent_f.append(match_dim)
@@ -221,7 +225,9 @@ class AttentionNetwork(nn.Module):
                     old_shape = score.size()
                 
                     score = F.softmax(score.view(old_shape[0], -1), dim=1).view(old_shape)
-                    
+
+                    #score = tile(score, dim=1, n_tile=self.att_channel) 
+                    score = score.expand(old_shape[0], self.att_channel, old_shape[2], old_shape[3])
                     x = self.att_recurrent_f[i](torch.cat([score, prev], dim=1))
                     recurrent_buf.append(x)
                     

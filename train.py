@@ -37,10 +37,6 @@ def get_parser():
                         help='the name of file loading the model')
     parser.add_argument('--data_path', default='/data2/simingy/data/', type=str, action='store',
                         help='the path of loading data')
-    parser.add_argument('--save_att_map', default=0, type=int, action='store',
-                        help='whether save attention map')
-    parser.add_argument('--print_fe', default=0, type=int, action='store',
-                        help='whether print familiarity effect related numbers')
     parser.add_argument('--task', default='cifar10', type=str, action='store',
                         help='the dataset task')
 
@@ -51,8 +47,6 @@ def get_parser():
                         help='batch size')
     parser.add_argument('--weight_init', default=None, type=str, action='store',
                         help='the way to initialize the weights of network')
-    parser.add_argument('--print_loss', default=0, type=int, action='store',
-                        help='whether print training loss')
     parser.add_argument('--grad_clip', default=0.0, type=float, action='store',
                         help='whether do gradient clipping')
     parser.add_argument('--init_weight', default='vgg', type=str, action='store',
@@ -72,6 +66,15 @@ def get_parser():
                         help='the internal to decay the learning rate')
     parser.add_argument('--optim', default=0, type=int, action='store',
                         help='which optimizer 0: SGD, 1: Adam')
+
+    # Attention Settings
+    parser.add_argument('--save_att_map', default=0, type=int, action='store',
+                        help='whether save attention map')
+    parser.add_argument('--print_fe', default=0, type=int, action='store',
+                        help='whether print familiarity effect related numbers')
+    parser.add_argument('--att_channel', default=1, type=int, action='store',
+                        help='how many score maps do you want to add in the attention\
+                                recurrent model')
 
 
     return parser
