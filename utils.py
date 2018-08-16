@@ -224,6 +224,21 @@ def getAttentionLayer(cfg):
 def getDepth(cfg):
     return cfg['depth']
 
+def getAtt_Recurrent(cfg):
+    att_recurrent_layer = []
+    
+    if 'att_r' in cfg:
+        for i, number in enumerate(cfg['att_r']):
+            att_recurrent_layer.append(int(number))
+
+    return att_recurrent_layer
+
+def getAtt_RecurrentSetting(i, cfg):
+    v = str(i)
+    unroll_count = cfg['att_r'][v]['unroll_count']
+
+    return unroll_count
+
 def get_jet():
     colormap_int = np.zeros((256, 3), np.uint8)
     colormap_float = np.zeros((256, 3), np.float)

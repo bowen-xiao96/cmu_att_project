@@ -33,27 +33,34 @@ class AttentionNetwork(nn.Module):
 
         super(AttentionNetwork, self).__init__()
 
-        # cfg: network structure (see above)
         # attention_layers: index of layers to be used to calculate attention
         # num_class: number of classification categories
         self.attention_layers = getAttentionLayer(cfg)
+        self.att_r_layers = getAtt_Recurrent(cfg)
         
+        # the path to save feature map, attention map, origin image
         self.save_att_map = args.save_att_map
-        self.print_fe = args.print_fe
         save_data_path = os.path.join('/data2/simingy/model_data/', args.expId)
         os.system('mkdir -p %s' % save_data_path)
-
         self.save_data = save_data_path
         
         # set up backbone network
         self.backbone = nn.ModuleList()
+
+        # set up fc layers
         self.fclayers = nn.ModuleList()
+ 
+        # Start to build the model!
         input_dim = 3
         layer_depth = getDepth(cfg)
+
         for j in range(1, layer_depth + 1):
             i = str(j)
+            # whether max pooling
             if getMaxPooling(i, cfg):
                 self.backbone.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+            # whether do convolution
             if getConv(i, cfg):
                 output_dim, kernel_size, padding = getConvSetting(i, cfg)
                 self.backbone.append(nn.Conv2d(input_dim, output_dim, 
@@ -66,7 +73,7 @@ class AttentionNetwork(nn.Module):
 
                 self.backbone.append(nn.ReLU(inplace=True))
 
-            
+            # whether FC layer
             if getFC(i, cfg):
                 input_, output_dim, dropout_rate, output = getFCSetting(i, cfg)
                 if input_ != 0:
@@ -77,7 +84,28 @@ class AttentionNetwork(nn.Module):
                 if dropout_rate != 0:
                     self.fclayers.append(nn.Dropout(dropout_rate))
 
-                input_dim = output_dim      
+                input_dim = output_dim  
+
+
+        # Set up Attention Recurrent Layers
+        if self.att_r_layers != []:
+            self.att_recurrent_b = nn.ModuleList()
+            self.att_recurrent_f = nn.ModuleList()
+
+            for v in self.att_r_layers:
+                m = nn.ModuleList()
+                self.att_r_unroll_count = getAtt_RecurrentSetting(v, cfg)
+                feature_dim = self.backbone[v - 1].out_channels
+                if feature_dim != 512:
+                    m.append(nn.Linear(512, feature_dim))
+                m.append(nn.Conv2d(feature_dim, 1, kernel_size=1))
+                self.att_recurrent_b.append(m)
+                
+                match_dim = nn.Sequential(
+                        nn.Conv2d(feature_dim + 1, feature_dim, kernel_size=3, padding=1),
+                        nn.ReLU(inplace=True)
+                        )
+                self.att_recurrent_f.append(match_dim)
 
         # Set up Attention Layers
         if self.attention_layers != []:
@@ -103,7 +131,9 @@ class AttentionNetwork(nn.Module):
             self.att_fc = nn.Linear(sum(concat_dim), num_class)
 
     def forward(self, x, print_fe=0):
-        self.print_fe = print_fe
+        
+        # whether print familiarity effect numbers
+        self.print_fe = print_fe 
         feature_maps = list()
 
         # Save origin images
@@ -115,7 +145,7 @@ class AttentionNetwork(nn.Module):
             input_img = np.transpose(input_img, (1, 2, 0))
             input_img = ((input_img * std) + mean) * 255.0
             input_img = (input_img).astype(np.uint8)
-            print("input_img:", input_img.shape)
+            #print("input_img:", input_img.shape)
             save_img = Image.fromarray(input_img)
             save_img.save(os.path.join(self.save_data, 'input-0.png'))
         
@@ -125,12 +155,19 @@ class AttentionNetwork(nn.Module):
             # after relu layer
             if i in self.attention_layers:
                 feature_maps.append(x)
+            if i in self.att_r_layers:
+                feature_maps.append(x)
+
 
         x = x.view(x.size(0), -1)
 
         for i, layer in enumerate(self.fclayers):
+            # Whether add attention recurrent
+            if self.att_r_layers != []:
+                if i == len(self.fclayers) - 1:
+                    break
             x = layer(x)
-        
+
         if len(self.attention_layers) != 0:
             features = list()
             for i, feature_map in enumerate(feature_maps):
@@ -146,10 +183,10 @@ class AttentionNetwork(nn.Module):
   
 
                 score = F.softmax(score.view(old_shape[0], -1), dim=1).view(old_shape)
-                #print(score)
+                
+                '''Print out some information'''
                 if self.save_att_map == 1:
                     cm = get_jet()
-                    print("score map:", score.shape)
                     att_map = nn.UpsamplingBilinear2d(size=(32, 32))(score)
                     att_map = att_map.data.cpu().numpy()
                     att_map = np.reshape(np.transpose(att_map[0], (1, 2, 0)), (32, 32))
@@ -158,17 +195,43 @@ class AttentionNetwork(nn.Module):
                     new_map.save(os.path.join(self.save_data, 'att-'+str(i)+'.png'))
 
                 if self.print_fe == 1:
-                    print("************index***********", i)
+                    print("index:", i)
                     print("score map max number:", torch.max(score))
-                    #print("score shape:", score.shape)
                     print("fire neurons:", torch.sum(score > 1e-3))
-                    #print("score map sum:", torch.sum(score))  
+                   
 
                 # weighted sum the feature map
                 weighted_sum = torch.sum(torch.sum(score * feature_map, dim=3), dim=2)
                 features.append(weighted_sum)
 
             x = self.att_fc(torch.cat(features, dim=1))
+
+        if self.att_r_layers != []:
+            
+            for i, feature_map in enumerate(feature_maps):
+                recurrent_buf = list()
+                recurrent_buf.append(feature_map)
+                for j in range(self.att_r_unroll_count):
+                    
+                    prev = recurrent_buf[-1]
+                    if len(self.att_recurrent_b[i]) == 2:
+                        x = self.att_recurrent_b[i][0](x)
+
+                    score = self.att_recurrent_b[i][-1](prev + x.view(x.size(0), -1, 1, 1))
+                    old_shape = score.size()
+                
+                    score = F.softmax(score.view(old_shape[0], -1), dim=1).view(old_shape)
+                    
+                    x = self.att_recurrent_f[i](torch.cat([score, prev], dim=1))
+                    recurrent_buf.append(x)
+                    
+                    for k in range(self.att_r_layers[i] + 1, len(self.backbone)):
+                        x = self.backbone[k](x)
+                    x = x.view(x.size(0), -1)
+                    for k in range(len(self.fclayers) - 1):
+                        x = self.fclayers[k](x)
+            
+            x = self.fclayers[-1](x)
 
         return x
 

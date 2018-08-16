@@ -131,7 +131,9 @@ def attention_model_training(args):
     if args.optim == 0:
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
     elif args.optim == 1:
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-5)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
+    elif args.optim == 2:
+        optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
     
     # Import Dataset
     if args.task == 'cifar10':
