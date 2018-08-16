@@ -16,7 +16,7 @@ attention_layers = [13, 20, 27]
 
 
 class VGG16Modified(nn.Module):
-    def __init__(self, cfg, num_class, dropout=0.5):
+    def __init__(self, cfg, num_class, avg_pool=1, dropout=0.5):
         super(VGG16Modified, self).__init__()
 
         backbone = list()
@@ -28,6 +28,8 @@ class VGG16Modified(nn.Module):
                 backbone.append(nn.Conv2d(input_dim, v, kernel_size=3, padding=1))
                 backbone.append(nn.ReLU(inplace=True))
                 input_dim = v
+
+        backbone.append(nn.AvgPool2d(kernel_size=avg_pool, stride=avg_pool))
 
         self.backbone = nn.Sequential(*backbone)
         self.classifier = nn.Sequential(
@@ -45,7 +47,7 @@ class VGG16Modified(nn.Module):
 
 
 class AttentionNetwork(nn.Module):
-    def __init__(self, cfg, attention_layers, num_class, dropout=0.5):
+    def __init__(self, cfg, attention_layers, num_class, avg_pool=1, dropout=0.5):
         super(AttentionNetwork, self).__init__()
 
         # cfg: network structure (see above)
@@ -63,6 +65,8 @@ class AttentionNetwork(nn.Module):
                 self.backbone.append(nn.Conv2d(input_dim, v, kernel_size=3, padding=1))
                 self.backbone.append(nn.ReLU(inplace=True))
                 input_dim = v
+
+        self.backbone.append(nn.AvgPool2d(kernel_size=avg_pool, stride=avg_pool))
 
         # set up attention layers
         self.attention = nn.ModuleList()
