@@ -6,7 +6,7 @@ import pickle
 
 import torch
 import torch.autograd as A
-import torch.nn as nn
+import torch.nn as nny
 #import matplotlib.pyplot as plt
 
 # ========== state data ==========
@@ -224,7 +224,6 @@ def main_loop():
 
             model_file = save(i, test_accu)
             saved_models.append(model_file)
-            #draw_figures()
 
 
 

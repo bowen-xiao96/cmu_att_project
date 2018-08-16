@@ -21,6 +21,7 @@ import Trainer
 
 from model_builder import AttentionNetwork
 from utils import *
+from show import *
 
 def get_parser():
     parser = argparse.ArgumentParser(description='The script to train the combine net')
@@ -34,10 +35,12 @@ def get_parser():
                         help='the master directory of saving the model')
     parser.add_argument('--load_file', default=None, type=str, action='store',
                         help='the name of file loading the model')
-    parser.add_argument('--data_path', default='/mnt/fs1/siming/data/', type=str, action='store',
+    parser.add_argument('--data_path', default='/data2/simingy/data/', type=str, action='store',
                         help='the path of loading data')
     parser.add_argument('--save_att_map', default=0, type=int, action='store',
                         help='whether save attention map')
+    parser.add_argument('--print_fe', default=0, type=int, action='store',
+                        help='whether print familiarity effect related numbers')
     parser.add_argument('--task', default='cifar10', type=str, action='store',
                         help='the dataset task')
 
@@ -89,6 +92,7 @@ def attention_model_training(args):
     if torch.cuda.device_count() > 1:
         net = nn.DataParallel(net)
     net.cuda()
+
     # Initialize weights
     if args.init_weight == 'vgg':
         vgg_init(net) 
@@ -97,7 +101,7 @@ def attention_model_training(args):
 
     # Loss function
     criterion = nn.CrossEntropyLoss().cuda()
-        
+
     start = 0
 
     # Load File
@@ -142,21 +146,26 @@ def attention_model_training(args):
             batch_size=args.batch_size,
             num_workers=4,
         )
-    
-    Trainer.start(
-            model=net,
-            optimizer=optimizer,
-            train_dataloader=train_loader,
-            test_dataloader=test_loader,
-            criterion=criterion,
-            max_epoch=300,
-            lr_sched=None,
-            display_freq=50,
-            output_dir=args.save_dir+args.expId,
-            save_every=20,
-            max_keep=20,
-            save_model_data='/data2/simingy/model_data/'+args.expId
-        )           
+
+    if args.print_fe == 1:
+        train_it_one(net, criterion, optimizer)
+        print("****************************************************************")
+        test_it(net, criterion, optimizer)
+    else:
+        Trainer.start(
+                model=net,
+                optimizer=optimizer,
+                train_dataloader=train_loader,
+                test_dataloader=test_loader,
+                criterion=criterion,
+                max_epoch=300,
+                lr_sched=None,
+                display_freq=50,
+                output_dir=args.save_dir+args.expId,
+                save_every=20,
+                max_keep=20,
+                save_model_data='/data2/simingy/model_data/'+args.expId
+            )           
     
 def main():
     parser = get_parser()
