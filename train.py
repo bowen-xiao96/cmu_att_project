@@ -75,7 +75,8 @@ def get_parser():
     parser.add_argument('--att_channel', default=1, type=int, action='store',
                         help='how many score maps do you want to add in the attention\
                                 recurrent model')
-
+    parser.add_argument('--att_r_type', default=0, type=int, action='store',
+                        help='0:concat attention map, 1:multiply attention map')
 
     return parser
 
@@ -117,18 +118,32 @@ def attention_model_training(args):
         net_dict = net.state_dict()
         net_list = list(net.state_dict().keys())
         pre_list = list(pretrained_dict.keys())
-        print("net size: {} pre size: {}".format(len(net_list), len(pre_list)))
+        
+        load_parallel_flag = load_parallel(pretrained_dict)
+
+        if load_parallel_flag == 1:
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            for k, v in pretrained_dict.items():
+                name = k[7:] # remove `module.`
+                new_state_dict[name] = v
+        else:
+            new_state_dict = pretrained_dict
+
+        #print("net size: {} pre size: {}".format(len(net_list), len(pre_list)))
         print(pre_list)
         print(net_list)
         if args.fix_load_weight == 1:
             for i,p in enumerate(net.parameters()):
                 if i < (len(pre_list) - 2):
                     p.requires_grad = False
-
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in net_dict}
-        net_dict.update(pretrained_dict)
-        net.load_state_dict(net_dict)
-        start = (int) ((re.findall(r"\d+", args.load_file))[-1])
+        
+        if args.load_part_parms == 1:
+            new_state_dict = {k: v for k, v in new_state_dict.items() if k in net_dict}
+            net_dict.update(new_state_dict)
+            net.load_state_dict(net_dict)
+        else:
+            net.load_state_dict(new_state_dict)
 
     # Optimizer
     if args.optim == 0:
@@ -137,7 +152,9 @@ def attention_model_training(args):
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
     elif args.optim == 2:
         optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
-    
+    elif args.optim == 3:
+        optimizer = optim.RMSprop(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
+
     # Import Dataset
     if args.task == 'cifar10':
         train_loader, test_loader = get_dataloader(

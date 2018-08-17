@@ -76,8 +76,8 @@ def get_parser():
 def get_imagenet_images():
     # sample some imagenet images
     # format: raw PIL images resized to 224 * 224
-    #root_dir = '/mnt/fs0/feigelis/imagenet-data/raw-data/train'
-    root_dir = '/data2/leelab/ILSVRC2015_CLS-LOC/ILSVRC2015/Data/CLS-LOC/train/'
+    root_dir = '/mnt/fs0/feigelis/imagenet-data/raw-data/train'
+    #root_dir = '/data2/leelab/ILSVRC2015_CLS-LOC/ILSVRC2015/Data/CLS-LOC/train/'
     labels = ('n03954731', 'n02690373', 'n02105855')
 
     images = list()
@@ -111,7 +111,7 @@ def extract_attention_maps(model, x, size=(224, 224), unroll_count=1):
         x = layer(x)
 
         # after relu layer
-        if i in [13]:
+        if i in [27]:
             feature_maps.append(x)
 
     # global feature
@@ -155,7 +155,7 @@ def extract_attention_maps(model, x, size=(224, 224), unroll_count=1):
             print(score.shape)
             score_maps.append(score.data.cpu().numpy())
 
-            for k in range(14, len(model.backbone)):
+            for k in range(28, len(model.backbone)):
                 x = model.backbone[k](x)
             
             print(j)

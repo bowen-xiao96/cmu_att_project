@@ -1,0 +1,1 @@
+python test_on_imagenet.py --gpu 0 --load_file /mnt/fs1/chengxuz/siming/model/vgg16_attention_recurrent_last/best.pkl --network_config vgg16_att_recurrent_last.cfg --expId test_vgg16_att_recurrent_last_unroll1 --save_dir /mnt/fs1/chengxuz/siming/model/ --att_unroll_count 1

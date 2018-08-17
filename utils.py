@@ -267,3 +267,12 @@ def tile(a, dim, n_tile):
     a = a.repeat(*(repeat_idx))
     order_index = torch.LongTensor(np.concatenate([init_dim * np.arange(n_tile) + i for i in range(init_dim)]))
     return torch.index_select(a, dim, order_index)
+
+
+def load_parallel(pre_dict):
+    for k, v in pre_dict.items():
+        if k[:7] == 'module.':
+            return 1
+        else:
+            return 0
+        
