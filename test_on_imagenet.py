@@ -62,6 +62,9 @@ def get_parser():
     parser.add_argument('--att_channel', default=1, type=int, action='store',
                         help='how many score maps do you want to add in the attention\
                                 recurrent model')
+    parser.add_argument('--att_unroll_count', default=1, type=int, action='store',
+                        help='how many time do you want to unroll')
+
 
 
     return parser
@@ -112,12 +115,13 @@ def extract_attention_maps(model, x, size=(224, 224), unroll_count=1):
     x = x.view(x.size(0), -1)
     x = model.fclayers[0](x)
     x = model.fclayers[1](x)
+    x = model.fclayers[2](x)
 
     features = list()
     for i, feature_map in enumerate(feature_maps):
         if unroll_count > 1:
             recurrent_buf = list()
-            recurrent_bu.append(feature_map)
+            recurrent_buf.append(feature_map)
 
         for j in range(unroll_count):
             
@@ -137,16 +141,23 @@ def extract_attention_maps(model, x, size=(224, 224), unroll_count=1):
                 score.view(old_shape[0], -1), dim=1
             ).view(old_shape)
 
+            x = model.att_recurrent_f[i](torch.cat([score, feature_map], dim=1))
+            if unroll_count > 1:
+                recurrent_buf.append(x)
+
+            # Save score maps
             # upsample the spatial map
             score = F.upsample(score, size=size, mode='bilinear')
+            print(score.shape)
             score_maps.append(score.data.cpu().numpy())
-
-            x = model.att_recurrent_f[i](torch.cat([score, feature_map], dim=1))
-            recurrent_buf.append(x)
 
             for k in range(14, len(model.backbone)):
                 x = model.backbone[k](x)
-            x = x.view(x.size(0), -1)
+            
+            print(j)
+            print(x.shape)
+            x = F.avg_pool2d(x, kernel_size=7, stride=7)
+            x = x.view(x.size(0), -1)          
             for k in range(len(model.fclayers) - 1):
                 x = model.fclayers[k](x)
 
@@ -174,6 +185,8 @@ if __name__ == '__main__':
     model_path = args.load_file
     _, _, pretrained_dict = torch.load(model_path)
     model = AttentionNetwork(network_cfg, args)
+
+
     model_dict = model.state_dict()
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
@@ -183,7 +196,7 @@ if __name__ == '__main__':
 
     print(model)
     all_images = get_imagenet_images()
-    batch_size = 16
+    batch_size = 4
     batch_count = int(math.ceil(float(len(all_images)) / batch_size))
     score_maps = list()
 
@@ -192,10 +205,10 @@ if __name__ == '__main__':
         images = A.Variable(torch.stack([transform(img) for img in images]).cuda())
 
         # get score map
-        score_maps.append(extract_attention_maps(model, images))
+        score_maps.append(extract_attention_maps(model, images, size=(224,224), unroll_count=args.att_unroll_count))
 
     score_maps = np.concatenate(score_maps, axis=0)
     all_images = np.stack([np.array(img) for img in all_images])
     
     print("Save it!")
-    np.savez('imagenet.npz', images=all_images, score_maps=score_maps)
+    np.savez('imagenet_3.npz', images=all_images, score_maps=score_maps)
