@@ -29,53 +29,23 @@ def gray2color(gray_array, color_map):
     return color_image
 
 
-if __name__ == '__main__':
-    # size = 32
-    # padding = 10
-    # color_map = get_jet()
-    # save_dir = 'score_map_visualize'
-    #
-    # if not os.path.exists(save_dir):
-    #     os.makedirs(save_dir)
-    #
-    # for flag in ('train', 'test'):
-    #     data = np.load(flag + '.npz')
-    #     images, score_maps = data['images'], data['score_maps']
-    #
-    #     for i in range(images.shape[0]):
-    #         image = images[i]
-    #
-    #         output_img = np.zeros((size, size * 4 + padding * 3, 3), dtype=np.uint8)
-    #         output_img[:, :size, :] = image
-    #
-    #         for j in range(3):
-    #             output_img[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = \
-    #                 gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
-    #
-    #         Image.fromarray(output_img, mode='RGB').save(os.path.join(save_dir, '%s_%d.png' % (flag, i)))
+def draw_image(original_image, score_maps, size=224, padding=20):
+    # original_image: batch_size * size * size * 3
+    # score_maps: batch_size * unroll_count * size * size
+    # return a list of batch_size PIL images
 
-    size = 224
-    padding = 20
+    batch_size, unroll_count = score_maps.shape[:2]
+    output_imgs = list()
     color_map = get_jet()
-    save_dir = 'imagenet_visualize'
 
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    for i in range(batch_size):
+        canvas = np.zeros((size, size * (unroll_count + 1) + padding * unroll_count, 3), dtype=np.uint8)
+        canvas[:, :size, :] = original_image[i]
 
-    data = np.load('imagenet.npz')
-    images, score_maps = data['images'], data['score_maps']
-    score_maps = np.log(score_maps)
-    score_maps -= np.min(score_maps)
-    score_maps /= np.max(score_maps)
+        for j in range(unroll_count):
+            colored_map = gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
+            canvas[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = colored_map
 
-    for i in range(images.shape[0]):
-        image = images[i]
+        output_imgs.append(Image.fromarray(canvas, mode='RGB'))
 
-        output_img = np.zeros((size, size * 4 + padding * 3, 3), dtype=np.uint8)
-        output_img[:, :size, :] = image
-
-        for j in range(3):
-            output_img[:, (size + padding) * (j + 1):size * (j + 2) + padding * (j + 1), :] = \
-                gray2color((255.0 * score_maps[i, j]).astype(np.uint8), color_map)
-
-        Image.fromarray(output_img, mode='RGB').save(os.path.join(save_dir, '%d.png' % i))
+    return output_imgs
