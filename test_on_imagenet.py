@@ -69,7 +69,8 @@ def get_parser():
 def get_imagenet_images():
     # sample some imagenet images
     # format: raw PIL images resized to 224 * 224
-    root_dir = r'/mnt/fs0/feigelis/imagenet-data/raw-data/train'
+    #root_dir = '/mnt/fs0/feigelis/imagenet-data/raw-data/train'
+    root_dir = '/data2/leelab/ILSVRC2015_CLS-LOC/ILSVRC2015/Data/CLS-LOC/train/'
     labels = ('n03954731', 'n02690373', 'n02105855')
 
     images = list()
@@ -94,7 +95,7 @@ def get_imagenet_images():
     return images
 
 
-def extract_attention_maps(model, x, size=(224, 224)):
+def extract_attention_maps(model, x, size=(224, 224), unroll_count=1):
     feature_maps = list()
     score_maps = list()
 
@@ -114,22 +115,40 @@ def extract_attention_maps(model, x, size=(224, 224)):
 
     features = list()
     for i, feature_map in enumerate(feature_maps):
-        if len(model.att_recurrent_b[i]) == 2:
-            # project the global feature
-            new_x = model.att_recurrent_b[i][0](x)
-        else:
-            new_x = x
+        if unroll_count > 1:
+            recurrent_buf = list()
+            recurrent_bu.append(feature_map)
 
-        # attention score map (do 1x1 convolution on the addition of feature map and the global feature)
-        score = model.att_recurrent_b[i][-1](feature_map + new_x.view(new_x.size(0), -1, 1, 1))
-        old_shape = score.size()
-        score = F.softmax(
-            score.view(old_shape[0], -1), dim=1
-        ).view(old_shape)
+        for j in range(unroll_count):
+            
+            if unroll_count > 1:
+                feature_map = recurrent_buf[-1]
 
-        # upsample the spatial map
-        score = F.upsample(score, size=size, mode='bilinear')
-        score_maps.append(score.data.cpu().numpy())
+            if len(model.att_recurrent_b[i]) == 2:
+                # project the global feature
+                new_x = model.att_recurrent_b[i][0](x)
+            else:
+                new_x = x
+
+            # attention score map (do 1x1 convolution on the addition of feature map and the global feature)
+            score = model.att_recurrent_b[i][-1](feature_map + new_x.view(new_x.size(0), -1, 1, 1))
+            old_shape = score.size()
+            score = F.softmax(
+                score.view(old_shape[0], -1), dim=1
+            ).view(old_shape)
+
+            # upsample the spatial map
+            score = F.upsample(score, size=size, mode='bilinear')
+            score_maps.append(score.data.cpu().numpy())
+
+            x = model.att_recurrent_f[i](torch.cat([score, feature_map], dim=1))
+            recurrent_buf.append(x)
+
+            for k in range(14, len(model.backbone)):
+                x = model.backbone[k](x)
+            x = x.view(x.size(0), -1)
+            for k in range(len(model.fclayers) - 1):
+                x = model.fclayers[k](x)
 
     score_maps = np.concatenate(score_maps, axis=1)
     return score_maps
@@ -152,7 +171,7 @@ if __name__ == '__main__':
     
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
 
-    model_path = '/mnt/fs1/chengxuz/siming/model/vgg16_attention_recurrent_first/best.pkl'
+    model_path = args.load_file
     _, _, pretrained_dict = torch.load(model_path)
     model = AttentionNetwork(network_cfg, args)
     model_dict = model.state_dict()
