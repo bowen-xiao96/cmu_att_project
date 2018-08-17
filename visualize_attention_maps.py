@@ -38,6 +38,10 @@ def draw_image(original_image, score_maps, size=224, padding=20):
     output_imgs = list()
     color_map = get_jet()
 
+    score_maps = np.log(score_maps)
+    score_maps -= np.min(score_maps)
+    score_maps /= np.max(score_maps)
+
     for i in range(batch_size):
         canvas = np.zeros((size, size * (unroll_count + 1) + padding * unroll_count, 3), dtype=np.uint8)
         canvas[:, :size, :] = original_image[i]
