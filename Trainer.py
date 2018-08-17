@@ -103,7 +103,9 @@ def train_one_epoch(epoch):
     for i, (x, y) in enumerate(train_dataloader_):
         # measure data loading time
         data_time.update(time.time() - end)
-
+        
+        if i > 2:
+            break
         x = A.Variable(x.cuda())
         y = A.Variable(y.cuda())
 

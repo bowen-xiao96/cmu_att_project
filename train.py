@@ -166,7 +166,7 @@ def attention_model_training(args):
         train_loader, test_loader = get_Imagenetloader(
             imn_dir=args.data_path,
             batch_size=args.batch_size,
-            num_workers=4,
+            num_workers=8,
         )
 
     if args.print_fe == 1:

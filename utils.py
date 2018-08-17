@@ -79,7 +79,7 @@ def get_Imagenetloader(imn_dir, batch_size, num_workers):
     mean = np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
     normalize = transforms.Normalize(mean, std)
-    
+
     # during training, only random horizontal flip is used for augmentation
     train_transform = transforms.Compose([
         transforms.RandomResizedCrop(224),
@@ -100,12 +100,12 @@ def get_Imagenetloader(imn_dir, batch_size, num_workers):
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        sampler=None
+        drop_last=True,
     )
 
     val_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Scale(256),
+        transforms.Resize(256),
         transforms.CenterCrop(224),
         normalize
     ])
@@ -119,9 +119,11 @@ def get_Imagenetloader(imn_dir, batch_size, num_workers):
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
+        num_workers=0,
         pin_memory=True,
+        drop_last=False,
     )
+    print("Load Data Done!")
     return train_loader, val_loader
 
 def xavier_init(model):

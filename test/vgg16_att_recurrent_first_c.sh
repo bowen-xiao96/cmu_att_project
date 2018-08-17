@@ -1,0 +1,1 @@
+python test_on_imagenet.py --gpu 0 --load_file /data2/simingy/model/vgg16_attention_recurrent_first_c/best.pkl --network_config vgg16_att_recurrent.cfg --expId test_vgg16_att_recurrent_first_unroll1_c --save_dir /data2/simingy/model_data  --att_unroll_count 1 --att_channel 256
