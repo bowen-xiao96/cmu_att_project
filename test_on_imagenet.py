@@ -12,6 +12,10 @@ import torchvision.transforms as transforms
 from utils import *
 from model_builder import AttentionNetwork
 
+torch.backends.cudnn.deterministic = True
+torch.cuda.manual_seed_all(0)
+
+
 def get_parser():
     parser = argparse.ArgumentParser(description='The script to train the combine net')
 
@@ -184,17 +188,23 @@ if __name__ == '__main__':
 
     model_path = args.load_file
     _, _, pretrained_dict = torch.load(model_path)
+    print(pretrained_dict.keys())
     model = AttentionNetwork(network_cfg, args)
+    print(model.state_dict().keys())
 
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in pretrained_dict.items():
+            name = k[7:] # remove `module.`
+            new_state_dict[name] = v
 
-    model_dict = model.state_dict()
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
+    # load params
+    print(new_state_dict.keys())
+    model.load_state_dict(new_state_dict)
     model.eval()
     model.cuda()
 
-    print(model)
+    #print(model)
     all_images = get_imagenet_images()
     batch_size = 4
     batch_count = int(math.ceil(float(len(all_images)) / batch_size))
@@ -211,4 +221,5 @@ if __name__ == '__main__':
     all_images = np.stack([np.array(img) for img in all_images])
     
     print("Save it!")
-    np.savez('imagenet_3.npz', images=all_images, score_maps=score_maps)
+    os.system('mkdir -p %s' % os.path.join(args.save_dir, args.expId))
+    np.savez(os.path.join(args.save_dir, args.expId, 'imagenet.npz'), images=all_images, score_maps=score_maps)
