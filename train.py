@@ -16,6 +16,8 @@ import torch.autograd as A
 import torchvision
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
+import torchvision.models as models
+import torch.utils.model_zoo as model_zoo
 import torch.optim as optim
 import Trainer
 
@@ -39,6 +41,10 @@ def get_parser():
                         help='the path of loading data')
     parser.add_argument('--task', default='cifar10', type=str, action='store',
                         help='the dataset task')
+    parser.add_argument('--load_part_params', default=0, type=int, action='store',
+                        help='whether load part parameters of model')
+    parser.add_argument('--save_every', default=20, type=int, action='store',
+                        help='how often to save the model')
 
     # Network settings
     parser.add_argument('--network_config', default=None, type=str, action='store',
@@ -66,6 +72,8 @@ def get_parser():
                         help='the internal to decay the learning rate')
     parser.add_argument('--optim', default=0, type=int, action='store',
                         help='which optimizer 0: SGD, 1: Adam')
+    parser.add_argument('--display_freq', default=50, type=int, action='store',
+                        help='frequency to show the training information')
 
     # Attention Settings
     parser.add_argument('--save_att_map', default=0, type=int, action='store',
@@ -77,6 +85,9 @@ def get_parser():
                                 recurrent model')
     parser.add_argument('--att_r_type', default=0, type=int, action='store',
                         help='0:concat attention map, 1:multiply attention map')
+    parser.add_argument('--load_vgg16', default=0, type=int, action='store',
+                        help='whether loading pretrained weights')
+
 
     return parser
 
@@ -84,7 +95,7 @@ def get_parser():
 def attention_model_training(args):
     
 
-    # Build Model
+    # --------Build Model--------
 
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
     if args.task == 'cifar10':
@@ -97,18 +108,18 @@ def attention_model_training(args):
         net = nn.DataParallel(net)
     net.cuda()
 
-    # Initialize weights
+    # --------Initialize weights--------
     if args.init_weight == 'vgg':
         vgg_init(net) 
     elif args.init_weight == 'xavier':
         xavier_init(net)
 
-    # Loss function
+    # --------Loss function--------
     criterion = nn.CrossEntropyLoss().cuda()
 
     start = 0
 
-    # Load File
+    # --------Load File--------
     if args.load_file is not None:
         prefix = (args.load_file).split('.')[-1]
         if prefix == 'pth':
@@ -119,9 +130,9 @@ def attention_model_training(args):
         net_list = list(net.state_dict().keys())
         pre_list = list(pretrained_dict.keys())
         
-        load_parallel_flag = load_parallel(pretrained_dict)
-
-        if load_parallel_flag == 1:
+        load_parallel_flag = load_parallel(net_dict)
+       
+        if load_parallel_flag == 0:
             from collections import OrderedDict
             new_state_dict = OrderedDict()
             for k, v in pretrained_dict.items():
@@ -129,8 +140,6 @@ def attention_model_training(args):
                 new_state_dict[name] = v
         else:
             new_state_dict = pretrained_dict
-
-        #print("net size: {} pre size: {}".format(len(net_list), len(pre_list)))
         print(pre_list)
         print(net_list)
         if args.fix_load_weight == 1:
@@ -138,14 +147,45 @@ def attention_model_training(args):
                 if i < (len(pre_list) - 2):
                     p.requires_grad = False
         
-        if args.load_part_parms == 1:
+        if args.load_part_params == 1:
             new_state_dict = {k: v for k, v in new_state_dict.items() if k in net_dict}
             net_dict.update(new_state_dict)
             net.load_state_dict(net_dict)
         else:
             net.load_state_dict(new_state_dict)
 
-    # Optimizer
+    if args.load_vgg16 == 1:
+        pretrained_dict = model_zoo.load_url(model_urls['vgg16'])
+
+        net_dict = net.state_dict()
+        from collections import OrderedDict
+
+        new_state_dict = OrderedDict()
+        for k, v in pretrained_dict.items():
+            if 'feature' in k:
+                name = 'backbone.' + k[9:]
+                new_state_dict[name] = v
+
+        load_parallel_flag = load_parallel(net_dict)
+        if load_parallel_flag == 1:
+            new2_state_dict = OrderedDict()
+            for k, v in new_state_dict.items():
+                name = 'module.' + k # add `module.`
+                new2_state_dict[name] = v
+        else:
+            new2_state_dict = new_state_dict
+
+        pre_list = list(new2_state_dict.keys())
+        net_list = list(net_dict.keys())
+        print(pre_list)
+        print(net_list)
+        new2_state_dict =  {k: v for k, v in new2_state_dict.items() if k in net_dict}
+        print(list(new2_state_dict.keys()))
+        net_dict.update(new2_state_dict)
+        net.load_state_dict(net_dict)
+        print("Successfully load parameters..")
+
+    # --------Optimizer---------
     if args.optim == 0:
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
     elif args.optim == 1:
@@ -155,7 +195,7 @@ def attention_model_training(args):
     elif args.optim == 3:
         optimizer = optim.RMSprop(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
 
-    # Import Dataset
+    # --------Import Dataset--------
     if args.task == 'cifar10':
         train_loader, test_loader = get_dataloader(
             cifar10_dir=args.data_path,
@@ -185,9 +225,9 @@ def attention_model_training(args):
                 init_lr= args.init_lr,
                 lr_decay = args.lr_decay,
                 lr_freq = args.lr_freq,
-                display_freq=50,
+                display_freq=args.display_freq,
                 output_dir=args.save_dir+args.expId,
-                save_every=20,
+                save_every=args.save_every,
                 max_keep=20,
                 save_model_data='/data2/simingy/model_data/'+args.expId
             )           

@@ -21,6 +21,10 @@ from torchvision.datasets import CIFAR10
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 
+model_urls = {
+    'vgg16': 'https://download.pytorch.org/models/vgg16-397923af.pth',
+}
+
 def get_dataloader(cifar10_dir, batch_size, num_workers):
     # creating dataset and dataloader
     mean = np.array([0.49139968, 0.48215827, 0.44653124])
@@ -104,9 +108,9 @@ def get_Imagenetloader(imn_dir, batch_size, num_workers):
     )
 
     val_transform = transforms.Compose([
-        transforms.ToTensor(),
         transforms.Resize(256),
         transforms.CenterCrop(224),
+        transforms.ToTensor(),
         normalize
     ])
 
@@ -119,7 +123,7 @@ def get_Imagenetloader(imn_dir, batch_size, num_workers):
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True,
         drop_last=False,
     )
@@ -272,9 +276,9 @@ def tile(a, dim, n_tile):
 
 
 def load_parallel(pre_dict):
+    ret_val = 0
     for k, v in pre_dict.items():
-        if k[:7] == 'module.':
-            return 1
-        else:
-            return 0
-        
+        if 'module' in k:
+            ret_val = 1
+    
+    return ret_val

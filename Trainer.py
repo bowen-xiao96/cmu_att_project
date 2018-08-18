@@ -103,9 +103,7 @@ def train_one_epoch(epoch):
     for i, (x, y) in enumerate(train_dataloader_):
         # measure data loading time
         data_time.update(time.time() - end)
-        
-        if i > 2:
-            break
+ 
         x = A.Variable(x.cuda())
         y = A.Variable(y.cuda())
 
@@ -137,7 +135,7 @@ def train_one_epoch(epoch):
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f}\t'
-                  'Learning Rate {current_lr:.6f})'.format(
+                  'Learning Rate {current_lr:.8f})'.format(
                 epoch, i, len(train_dataloader_), batch_time=batch_time,
                 data_time=data_time, loss=losses, top1=top1, top5=top5, current_lr=current_lr))
 
@@ -159,6 +157,7 @@ def test(epoch):
     model_.eval()
 
     for x, y in test_dataloader_:
+
         x = A.Variable(x.cuda())
         y = A.Variable(y.cuda())
 
