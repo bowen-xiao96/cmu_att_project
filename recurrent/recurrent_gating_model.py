@@ -66,7 +66,10 @@ class RecurrentGatingModel(nn.Module):
 
             # gated mixing
             gate = self.gating(torch.cat((x, prev), dim=1))
-            x = gate * self.projection(x) + (1.0 - gate) * prev
+            x = gate * self.projection(x)  + (1.0 - gate) * prev
+
+            # push result into the buffer
+            recurrent_buf.append(x)
 
             # remaining layers
             for i in range(self.start_idx, self.end_idx + 1):
@@ -76,7 +79,6 @@ class RecurrentGatingModel(nn.Module):
             x = self.backbone[i](x)
 
         x = x.view(x.size(0), -1)
-        # print(x.shape)
         return self.classifier(x)
 
 
@@ -85,7 +87,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
     TAG = sys.argv[1]
 
-    model = RecurrentGatingModel(network_cfg, 5, 10)
+    model = RecurrentGatingModel(network_cfg, 6, 10)
     initialize_vgg(model)
     model = nn.DataParallel(model).cuda()
 
