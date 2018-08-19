@@ -66,14 +66,14 @@ class RecurrentGatingModel(nn.Module):
 
             # gated mixing
             gate = self.gating(torch.cat((x, prev), dim=1))
-            x = gate * self.projection(x)  + (1.0 - gate) * prev
+            x = gate * self.projection(x) + (1.0 - gate) * prev
 
             # push result into the buffer
             recurrent_buf.append(x)
 
             # remaining layers
-            for i in range(self.start_idx, self.end_idx + 1):
-                x = self.backbone[i](x)
+            for j in range(self.start_idx, self.end_idx + 1):
+                x = self.backbone[j](x)
 
         for i in range(self.end_idx + 1, len(self.backbone)):
             x = self.backbone[i](x)
