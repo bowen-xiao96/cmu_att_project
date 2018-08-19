@@ -1,4 +1,5 @@
 import os, sys
+import gzip
 import pickle
 import xml.etree.ElementTree as ET
 import numpy as np
@@ -62,45 +63,55 @@ def crop_image(anno_path, image_path, save_to, class_id, size_thresh=None, ratio
         img.save(os.path.join(output_path, os.path.splitext(f)[0] + '.JPEG'))
 
 
-def dump_dataset(anno_path, image_path, label_file):
+def dump_dataset(anno_path, image_path, label_file, val_set_label_file):
     # load all the image names and bounding boxes
     # save in a pickle file
-
-    flag = ('train', 'val')
 
     # parse labels
     labels = list()
     with open(label_file, 'r') as f_in:
-        lines = f_in.readlines()
-        for l in lines:
-            l = l.strip()
-            if not l: continue
+        lines = [l.strip() for l in f_in.readlines() if l.strip()]
 
-            class_id, cat, description = l.split()
-            assert int(cat) == len(labels) + 1
-            labels.append((class_id, description))
+    for l in lines:
+        class_id, cat, description = l.split()
+        # in annotation file, category number starts from 1
+        assert int(cat) - 1 == len(labels)
+        labels.append((class_id, description))
 
-    assert len(labels) == 1000
+    # load training set
+    train_data = list()
+    for cat, (class_id, _) in enumerate(labels):
+        anno_dir = os.path.join(anno_path, 'train', class_id)
+        for anno_file in os.listdir(anno_dir):
+            bboxes = load_imagenet_notation(os.path.join(anno_dir, anno_file))
+            img_name = os.path.join(image_path, 'train', class_id, os.path.splitext(anno_file)[0] + '.JPEG')
+            assert os.path.exists(img_name)
 
-    for f in flag:
-        # (filename, bboxes, cat)
-        data = list()
-        for cat, (class_id, _) in enumerate(labels):
-            anno_dir = os.path.join(anno_path, f, class_id)
-            for anno_file in os.listdir(anno_dir):
-                bboxes = load_imagenet_notation(os.path.join(anno_dir, anno_file))
-                img_name = os.path.join(image_path, f, class_id, os.path.splitext(anno_file)[0] + '.JPEG')
-                assert os.path.exists(img_name)
+            train_data.append((img_name, bboxes, cat))
 
-                data.append((img_name, bboxes, cat))
+    # load val set
+    val_data = list()
+    with open(val_set_label_file, 'r') as f_in:
+        lines = [int(l.strip()) for l in f_in.readlines() if l.strip()]
 
-        with open('imagenet_%s.pkl' % f, 'wb') as f_out:
-            pickle.dump((data, labels), f_out, pickle.HIGHEST_PROTOCOL)
+    assert len(lines) == 50000
+    for i, cat in enumerate(lines):
+        anno_file_name = os.path.join(anno_path, 'val', 'ILSVRC2012_val_%08d.xml' % (i + 1))
+        bboxes = load_imagenet_notation(anno_file_name)
+        img_name = os.path.join(image_path, 'val', 'ILSVRC2012_val_%08d.JPEG' % (i + 1))
+        assert os.path.exists(img_name)
+
+        # cat start from 1
+        val_data.append((img_name, bboxes, cat - 1))
+
+    with gzip.open('imagenet_metadata.pkgz', 'wb') as f_out:
+        pickle.dump((labels, train_data, val_data), f_out, pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
     dump_dataset(
         '/data2/leelab/ILSVRC2015_CLS-LOC/ILSVRC2015/Annotations/CLS-LOC',
-        '/data2/simingy/data/Imagenet',
-        '/data2/bowenx/dataset/map_clsloc.txt'
+        '/data2/leelab/ILSVRC2015_CLS-LOC/ILSVRC2015/Data/CLS-LOC',
+        '/data2/bowenx/dataset/map_clsloc.txt',
+        '/data2/bowenx/dataset/ILSVRC2014_clsloc_validation_ground_truth.txt'
     )
