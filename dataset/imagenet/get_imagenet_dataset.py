@@ -5,10 +5,10 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
-imagenet_path = r'/data2/simingy/data/Imagenet'
 
+def get_dataloader(root_dir, batch_size, num_workers):
+    # get unpreprocessed imagenet dataset
 
-def get_imagenet_dataset(root_dir, batch_size, num_workers):
     mean = np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
     normalize = transforms.Normalize(mean, std)

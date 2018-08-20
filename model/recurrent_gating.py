@@ -1,20 +1,13 @@
-import os, sys
-import math
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as A
 
-import Trainer
-from pay_attention import initialize_vgg, get_dataloader
-
 network_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
 
 
 class RecurrentGatingModel(nn.Module):
-    def __init__(self, network_cfg, unroll_count, num_class, dropout=0.5):
+    def __init__(self, network_cfg, unroll_count, num_class, avg_pool=1, dropout=0.5):
         super(RecurrentGatingModel, self).__init__()
         self.unroll_count = unroll_count
 
@@ -29,6 +22,8 @@ class RecurrentGatingModel(nn.Module):
                 self.backbone.append(nn.ReLU(inplace=True))
                 input_dim = v
 
+        self.backbone.append(nn.AvgPool2d(kernel_size=avg_pool, stride=avg_pool))
+
         # classifier
         self.classifier = nn.Sequential(
             nn.Dropout(p=dropout),
@@ -37,15 +32,15 @@ class RecurrentGatingModel(nn.Module):
 
         # recurrent connection
         # start at conv3_1, end at conv4_3
-        self.start_idx = 10
-        self.end_idx = 22
-
-        self.gating = nn.Sequential(
-            nn.Conv2d(512 + 128, 128, kernel_size=1),
-            nn.Sigmoid()
-        )
+        self.start_idx = 10  # conv of conv3_1
+        self.end_idx = 22  # relu after conv4_3
 
         self.projection = nn.Conv2d(512, 128, kernel_size=1)
+
+        self.gating = nn.Sequential(
+            nn.Conv2d(512 + 128, 128, kernel_size=3, padding=1),  # alternative: 1x1 convolution
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         recurrent_buf = list()
@@ -55,6 +50,7 @@ class RecurrentGatingModel(nn.Module):
             x = layer(x)
 
             if i == self.start_idx - 1:
+                # the input of conv3_1
                 recurrent_buf.append(x)
             elif i == self.end_idx:
                 break
@@ -83,46 +79,9 @@ class RecurrentGatingModel(nn.Module):
 
 
 if __name__ == '__main__':
-    assert len(sys.argv) > 1
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-    TAG = sys.argv[1]
+    model = RecurrentGatingModel(network_cfg, 5, 10)
+    model.train()
 
-    model = RecurrentGatingModel(network_cfg, 6, 10)
-    initialize_vgg(model)
-    model = nn.DataParallel(model).cuda()
-
-    train_loader, test_loader = get_dataloader(
-        '/data2/bowenx/attention/pay_attention/cifar',
-        256,
-        4
-    )
-
-    criterion = nn.CrossEntropyLoss().cuda()
-    init_lr = 0.001
-
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=init_lr,
-        weight_decay=5e-4
-    )
-
-
-    def lr_sched(optimizer, epoch):
-        lr = init_lr * (0.5 ** (epoch // 30))
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-
-    Trainer.start(
-        model=model,
-        optimizer=optimizer,
-        train_dataloader=train_loader,
-        test_dataloader=test_loader,
-        criterion=criterion,
-        max_epoch=180,
-        lr_sched=lr_sched,
-        display_freq=50,
-        output_dir=TAG,
-        save_every=20,
-        max_keep=20
-    )
+    model_input = A.Variable(torch.zeros(3, 3, 32, 32))
+    model_output = model(model_input)
+    print(model_output.size())

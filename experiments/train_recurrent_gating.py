@@ -1,44 +1,46 @@
 import os, sys
-import math
-import numpy as np
-import pickle
+
+import torch.backends.cudnn as cudnn
+cudnn.benchmark = True
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.autograd as A
 import torch.optim as optim
 
-import torch.backends.cudnn as cudnn
+sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
-cudnn.benchmark = True
+from util import Trainer
+from util.model_tools import initialize_vgg
+from model.recurrent_gating import *
+from dataset.cifar.get_cifar10_dataset import get_dataloader
 
-import Trainer
-from pay_attention import cfg, AttentionNetwork, attention_layers, initialize_vgg, get_dataloader
-
-assert len(sys.argv) > 2
+assert len(sys.argv) > 3
 GPU_ID = int(sys.argv[1])
 os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
-TAG = sys.argv[2]
+unroll_count = int(sys.argv[2])
+TAG = sys.argv[3]
 
-model = AttentionNetwork(cfg, attention_layers, 10)
+print('Unrolling time step: %d' % unroll_count)
+
+model = RecurrentGatingModel(network_cfg, unroll_count, 10)
 initialize_vgg(model)
 model.cuda()
 
 train_loader, test_loader = get_dataloader(
-    '/data2/bowenx/attention/cifar',
+    '/data2/bowenx/attention/pay_attention/dataset/cifar',
     256,
-    4
+    1
 )
 
 criterion = nn.CrossEntropyLoss()
 criterion.cuda()
-init_lr = 0.001
+init_lr = 0.0001
 
 optimizer = optim.Adam(
     model.parameters(),
     lr=init_lr,
-    weight_decay=5e-4
+    weight_decay=1e-3
 )
 
 
@@ -54,10 +56,10 @@ Trainer.start(
     train_dataloader=train_loader,
     test_dataloader=test_loader,
     criterion=criterion,
-    max_epoch=120,
-    lr_sched=None,
+    max_epoch=180,
+    lr_sched=lr_sched,
     display_freq=50,
     output_dir=TAG,
-    save_every=5,
+    save_every=1,
     max_keep=20
 )

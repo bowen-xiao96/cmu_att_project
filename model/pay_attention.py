@@ -1,36 +1,18 @@
-# train the vgg attention model from scratch on ImageNet
-# utilize multiple GPUS
-
-import os, sys
-import math
 import numpy as np
-import pickle
-
-import torch.backends.cudnn as cudnn
-cudnn.benchmark = True
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as A
-import torch.optim as optim
 
-import Trainer
-from imagenet_dataset import *
+cfg = [64, 64, 128, 128, 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M', 512, 'M', 512, 'M']
 
-assert len(sys.argv) > 1
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-TAG = sys.argv[1]
-
-# define model
-cfg = [64, 64, 128, 128, 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M', 512, 'M', 512, 'M', 512]
 attention_layers = [13, 20, 27]
 
 
-# only add an average pooling on the whole network
-class ImageNetAttentionModel(nn.Module):
-    def __init__(self, cfg, attention_layers, num_class, dropout=0.5):
-        super(ImageNetAttentionModel, self).__init__()
+class AttentionNetwork(nn.Module):
+    def __init__(self, cfg, attention_layers, num_class, avg_pool=1, dropout=0.5):
+        super(AttentionNetwork, self).__init__()
 
         # cfg: network structure (see above)
         # attention_layers: index of layers to be used to calculate attention
@@ -48,8 +30,7 @@ class ImageNetAttentionModel(nn.Module):
                 self.backbone.append(nn.ReLU(inplace=True))
                 input_dim = v
 
-        # the final global average pooling layer
-        self.backbone.append(nn.AvgPool2d(kernel_size=7, stride=7))
+        self.backbone.append(nn.AvgPool2d(kernel_size=avg_pool, stride=avg_pool))
 
         # set up attention layers
         self.attention = nn.ModuleList()
@@ -70,10 +51,8 @@ class ImageNetAttentionModel(nn.Module):
 
         self.fc1 = nn.Linear(512, 512)
         self.classifier = nn.Sequential(
-            nn.Linear(sum(concat_dim), 1024),
-            nn.ReLU(inplace=True),
             nn.Dropout(p=dropout),
-            nn.Linear(1024, num_class)
+            nn.Linear(sum(concat_dim), num_class)
         )
 
     def forward(self, x):
@@ -109,59 +88,3 @@ class ImageNetAttentionModel(nn.Module):
             features.append(weighted_sum)
 
         return self.classifier(torch.cat(features, dim=1))
-
-
-def initialize_vgg(model):
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d):
-            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            nn.init.normal(m.weight.data, mean=0.0, std=math.sqrt(2.0 / n))
-            nn.init.constant(m.bias.data, 0.0)
-        elif isinstance(m, nn.BatchNorm2d):
-            nn.init.constant(m.weight.data, 1.0)
-            nn.init.constant(m.bias.data, 0.0)
-
-        # leave fc layers default initialized
-
-
-model = ImageNetAttentionModel(cfg, attention_layers, 1000, dropout=0.5)
-initialize_vgg(model)
-model = nn.DataParallel(model, device_ids=(0, 1, 2, 3)).cuda()
-
-train_loader, test_loader = get_imagenet_dataset(
-    imagenet_path,
-    64,
-    8
-)
-
-criterion = nn.CrossEntropyLoss()
-criterion.cuda()
-init_lr = 0.01
-
-optimizer = torch.optim.SGD(
-    model.parameters(),
-    lr=init_lr,
-    momentum=0.9,
-    weight_decay=1e-4
-)
-
-
-def lr_sched(optimizer, epoch):
-    lr = init_lr * (0.1 ** (epoch // 30))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-
-Trainer.start(
-    model=model,
-    optimizer=optimizer,
-    train_dataloader=train_loader,
-    test_dataloader=test_loader,
-    criterion=criterion,
-    max_epoch=61,
-    lr_sched=lr_sched,
-    display_freq=50,
-    output_dir=TAG,
-    save_every=1,
-    max_keep=50
-)
