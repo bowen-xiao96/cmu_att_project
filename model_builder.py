@@ -41,7 +41,7 @@ class AttentionNetwork(nn.Module):
         # Attention Recurrent model
         self.att_r_layers = getAtt_Recurrent(cfg)
         self.att_channel = args.att_channel
-        self.att_r_type = args.att_r_type
+        #self.att_r_type = args.att_r_type
 
         # the path to save feature map, attention map, origin image
         self.save_att_map = args.save_att_map
@@ -229,11 +229,9 @@ class AttentionNetwork(nn.Module):
 
                     #score = tile(score, dim=1, n_tile=self.att_channel) 
                     score = score.expand(old_shape[0], self.att_channel, old_shape[2], old_shape[3])
-                    if self.att_r_type == 0:
-                        x = self.att_recurrent_f[i](torch.cat([score, prev], dim=1))
-                    elif self.att_r_type == 1:
-                        score = score.expand(score.shape[0], prev.shape[1], score.shape[2], score.shape[3])
-                        x = torch.mul(prev, score)
+
+                    x = self.att_recurrent_f[i](torch.cat([score, prev], dim=1))
+
                     recurrent_buf.append(x)
                     
                     for k in range(self.att_r_layers[i] + 1, len(self.backbone)):

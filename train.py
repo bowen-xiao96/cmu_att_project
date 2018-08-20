@@ -148,8 +148,17 @@ def attention_model_training(args):
                     p.requires_grad = False
         
         if args.load_part_params == 1:
-            new_state_dict = {k: v for k, v in new_state_dict.items() if k in net_dict}
-            net_dict.update(new_state_dict)
+            from collections import OrderedDict
+            
+            new2_state_dict = OrderedDict()
+            for k, v in new_state_dict.items():
+                if 'fclayers' in k:
+                    continue
+                new2_state_dict[k] = v
+
+            new2_state_dict = {k: v for k, v in new2_state_dict.items() if k in net_dict}
+            print(new2_state_dict.keys())
+            net_dict.update(new2_state_dict)
             net.load_state_dict(net_dict)
         else:
             net.load_state_dict(new_state_dict)

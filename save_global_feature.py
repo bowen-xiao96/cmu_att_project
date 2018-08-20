@@ -81,7 +81,9 @@ def get_imagenet_images():
     # format: raw PIL images resized to 224 * 224
     #root_dir = '/mnt/fs0/feigelis/imagenet-data/raw-data/train'
     root_dir = '/data2/leelab/ILSVRC2015_CLS-LOC/ILSVRC2015/Data/CLS-LOC/train/'
-    labels = ('n03954731', 'n02690373', 'n02105855')
+    labels = ['n02690373'] # airplane
+            #'n03095699', 
+            #'n01644373')
 
     images = list()
     image_count = 30
@@ -118,16 +120,50 @@ def get_cifar10_images():
         else:
             entry = pickle.load(fo, encoding='latin1')
         train_data = entry['data']
+        if 'labels' in entry:
+            train_labels = entry['labels']
+        else:
+            train_labels = entry['fine_labels']
 
         fo.close()
 
     train_data = train_data.reshape((10000, 3, 32, 32))
     train_data = train_data.transpose((0, 2, 3, 1))
     images = []
-    for i in range(60):
-        images.append(train_data[i])
-    
+    for i in range(1000):
+        if train_labels[i] == 0:  # all the airplane images
+            images.append(train_data[i])
+
+    print(len(images))
+
     return images
+
+def extract_global_features(model, x, size=(32, 32)):
+    feature_maps = list()
+    global_features = list()
+
+    for i, layer in enumerate(model.backbone):
+        x = layer(x)
+
+        if i in [15]:
+            feature_maps.append(x)
+    
+    x = x.view(x.size(0), -1)
+
+    for i, layer in enumerate(model.fclayers):
+        x = layer(x)
+
+    for i, feature_map in enumerate(feature_maps):
+        if len(model.attention[i]) == 2:
+            global_feature = model.attention[i][0](x)
+        else:
+            global_feature = x
+                
+        global_features.append(global_feature.data.cpu().numpy())
+    
+    global_features = np.concatenate(global_features, axis=0)
+    return global_features
+
 
 def extract_attention_maps(model, x, size=(32, 32)):
     feature_maps = list()
@@ -255,16 +291,16 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         normalize
     ])
-    
-    network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
 
+    # ----Build Model----
+    network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
+    
+    model = AttentionNetwork(network_cfg, args)
+
+    # ----Load Model----
     model_path = args.load_file
     _, _, pretrained_dict = torch.load(model_path)
     print(pretrained_dict.keys())
-    if args.dataset == 'cifar10':
-        model = AttentionNetwork(network_cfg, args)
-    elif args.dataset == 'imagenet':
-        model = AttentionNetwork(network_cfg, args, num_class=1000)
     print(model.state_dict().keys())
     
     load_parallel_flag = load_parallel(pretrained_dict)
@@ -277,42 +313,35 @@ if __name__ == '__main__':
     else:
         new_state_dict = pretrained_dict
 
-    # load params
     print(new_state_dict.keys())
     model.load_state_dict(new_state_dict)
     model.eval()
     model.cuda()
 
-    #print(model)
-    if args.dataset == 'imagenet':
-        all_images = get_imagenet_images()
-    elif args.dataset == 'cifar10':
-        all_images = get_cifar10_images()
+    # ----Load Dataset----
+    imagenet_images = get_imagenet_images()
+    cifar_images = get_cifar10_images()
 
     batch_size = 4
-    batch_count = int(math.ceil(float(len(all_images)) / batch_size))
+    batch_count = int(math.ceil(float(len(cifar_images)) / batch_size))
     score_maps = list()
-
+    global_features = list()
     for i in range(batch_count):
-        images = all_images[i * batch_size: (i + 1) * batch_size]
+        images = cifar_images[i * batch_size: (i + 1) * batch_size]
         images = A.Variable(torch.stack([transform(img) for img in images]).cuda())
+        # get global features
+        global_features.append(extract_global_features(model, images))
 
-        # get score map
-        if args.dataset == 'imagenet':
-            if args.task == 'recurrent_att':
-                score_maps.append(extract_recurrent_attention_maps(model, images, size=(224,224), unroll_count=args.att_unroll_count))
-            elif args.task == 'attention':
-                score_maps.append(extract_attention_maps(model, images, size=(224,224)))
-        elif args.dataset == 'cifar10':
-            if args.task == 'recurrent_att':
-                score_maps.append(extract_recurrent_attention_maps(model, images, size=(32, 32), unroll_count=args.att_unroll_count))
-            elif args.task == 'attention':
-                score_maps.append(extract_attention_maps(model, images, size=(32, 32)))
+        score_maps.append(extract_attention_maps(model, images, size=(32, 32)))
 
-
+    global_features = np.concatenate(global_features, axis=0)
     score_maps = np.concatenate(score_maps, axis=0)
-    all_images = np.stack([np.array(img) for img in all_images])
+
+    print("global feature:", global_features.shape)
+    print("score maps:", score_maps.shape)
+    all_images = np.stack([np.array(img) for img in cifar_images])
     
     print("Save it!")
     os.system('mkdir -p %s' % os.path.join(args.save_dir, args.expId))
-    np.savez(os.path.join(args.save_dir, args.expId, 'imagenet.npz'), images=all_images, score_maps=score_maps)
+    np.savez(os.path.join(args.save_dir, args.expId, 'cifar-images.npz'), images=all_images, score_maps=score_maps)
+    np.savez(os.path.join(args.save_dir, args.expId, 'cifar-global_feature.npz'), global_features=global_features)
