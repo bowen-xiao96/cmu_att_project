@@ -43,6 +43,10 @@ class AttentionNetwork(nn.Module):
         self.att_channel = args.att_channel
         #self.att_r_type = args.att_r_type
 
+        # Attention Recurrent V2 model
+        self.att_r_v2_layers = getAtt_Recurrent_v2(cfg)
+        self.start_layers = []
+
         # the path to save feature map, attention map, origin image
         self.save_att_map = args.save_att_map
         save_data_path = os.path.join('/data2/simingy/model_data/', args.expId)
@@ -112,6 +116,34 @@ class AttentionNetwork(nn.Module):
                         )
                 self.att_recurrent_f.append(match_dim)
 
+        # Set up Attention Recurrent V2 Layers
+        if self.att_r_v2_layers != []:
+            self.att_recurrent_b = nn.ModuleList()
+            self.att_recurrent_f = nn.ModuleList()
+
+            for v in self.att_r_v2_layers:
+                m = nn.ModuleList()
+                self.att_r_unroll_account, start_layer = getAtt_Recurrent_v2_Setting(v, cfg)
+                self.start_layers.append(start_layer)
+
+                feature_dim = self.backbone[v-1].out_channels
+                m.append(nn.ConvTranspose2d(feature_dim, feature_dim / 4, kernel_size=3, stride=2, padding=1))
+                m.append(nn.ConvTranspose2d(feature_dim / 4, feature_dim / 8, kernel_size=3, stride=2, padding=1))
+                m.append(nn.ConvTranspose2d(feature_dim / 8, feature_dim / 16, kernel_size=2, stride=2, padding=1))
+                m.append(nn.Conv2d(feature_dim / 16, 1, kernel_size=1))
+                self.att_recurrent_b.append(m)
+                
+                start_feature_dim = self.backbone[start_layer-1].out_channels
+                match_dim = nn.Sequential(
+                        nn.Conv2d(start_feature_dim + 1, start_feature_dim, kernel_size=3, padding=1),
+                        nn.ReLU(inplace=True)
+                        )
+
+                self.att_recurrent_f.append(match_dim)
+               
+
+
+
         # Set up Attention Layers
         if self.attention_layers != []:
 
@@ -140,6 +172,7 @@ class AttentionNetwork(nn.Module):
         # whether print familiarity effect numbers
         self.print_fe = print_fe 
         feature_maps = list()
+        end_feature_maps = list()
 
         # Save origin images
         if self.save_att_map == 1:
@@ -154,7 +187,9 @@ class AttentionNetwork(nn.Module):
             save_img = Image.fromarray(input_img)
             save_img.save(os.path.join(self.save_data, 'input-0.png'))
         
-        
+        break_point = []
+
+        # Backbone part 
         for i, layer in enumerate(self.backbone):
             x = layer(x)
             # after relu layer
@@ -162,6 +197,36 @@ class AttentionNetwork(nn.Module):
                 feature_maps.append(x)
             if i in self.att_r_layers:
                 feature_maps.append(x)
+            if i in self.start_layers:
+                feature_maps.append(x)
+            if i in self.att_r_v2_layers:
+                break_point.append(i + 1)
+                break
+
+        # Attention Recurrent V2
+        if self.att_r_v2_layers != []:
+            for i, feature_map in enumerate(feature_maps):
+                recurrent_buf = list()
+                recurrent_buf.append(feature_map)
+                for j in range(self.att_r_unroll_account):
+                    prev = recurrent_buf[-1]
+
+                    for k, layer in enumerate(self.att_recurrent_b[i]):
+                         x = layer(x)
+                    
+                    old_shape = x.size()
+
+                    score = F.softmax(x.view(old_shape[0], -1), dim=1).view(old_shape)
+
+                    x = self.att_recurrent_f[i](torch.cat([score, prev], dim=1))
+
+                    recurrent_buf.append(x)
+
+                    for k in range(self.start_layers[i] + 1, break_point[i]):
+                        x = self.backbone[k](x)
+
+                for j in range(break_point[i], len(self.backbone)):
+                    x = self.backbone[j](x)
 
 
         x = x.view(x.size(0), -1)

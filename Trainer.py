@@ -6,12 +6,14 @@ import pickle
 
 import torch
 import torch.autograd as A
-import torch.nn as nny
+import torch.nn as nn
+import torch.optim as optim
 #import matplotlib.pyplot as plt
 
 # ========== state data ==========
 model_ = None
 optimizer_ = None
+
 train_dataloader_ = None
 test_dataloader_ = None
 criterion_ = None
@@ -204,15 +206,15 @@ def main_loop():
 
 
     best_accu = -1.0
-    saved_models = list()
+    saved_models = list()      
 
     for i in range(max_epoch_):
         if call_back_:
             call_back_(globals(), i)
-
+        
         if lr_sched_:
             lr_sched_(optimizer_, i, init_lr=init_lr_, lr_decay=lr_decay_, lr_freq=lr_freq_)
-
+                    
         train_one_epoch(i)
         test_accu = test(i)
 

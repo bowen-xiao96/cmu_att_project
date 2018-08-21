@@ -74,7 +74,8 @@ def get_parser():
                         help='which optimizer 0: SGD, 1: Adam')
     parser.add_argument('--display_freq', default=50, type=int, action='store',
                         help='frequency to show the training information')
-
+    parser.add_argument('--change_sgd', default=0, type=int, action='store',
+                        help='whether change optimizer after 1 epoch')
     # Attention Settings
     parser.add_argument('--save_att_map', default=0, type=int, action='store',
                         help='whether save attention map')
@@ -195,6 +196,7 @@ def attention_model_training(args):
         print("Successfully load parameters..")
 
     # --------Optimizer---------
+
     if args.optim == 0:
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
     elif args.optim == 1:

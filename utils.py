@@ -244,6 +244,20 @@ def getAtt_RecurrentSetting(i, cfg):
 
     return unroll_count
 
+def getAtt_Recurrent_v2(cfg):
+    att_recurrent_layer = []
+    if 'att_r_v2' in cfg:
+        for i, number in enumerate(cfg['att_r_v2']):
+            att_recurrent_layer.append(int(number))
+
+    return att_recurrent_layer
+
+def getAtt_Recurrent_v2_Setting(i, cfg):
+    v = str(i)
+    unroll_count = cfg['att_r_v2'][v]['unroll_count']
+    start_layer = cfg['att_r_v2'][v]['back']
+    return unroll_count, start_layer
+
 def get_jet():
     colormap_int = np.zeros((256, 3), np.uint8)
     colormap_float = np.zeros((256, 3), np.float)
