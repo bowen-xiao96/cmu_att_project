@@ -17,8 +17,6 @@ from util.model_tools import initialize_vgg
 from model.recurrent_gating_refinement import *
 from dataset.cifar.get_cifar10_dataset import get_dataloader
 
-sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
-
 assert len(sys.argv) > 3
 GPU_ID = int(sys.argv[1])
 os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
@@ -76,7 +74,7 @@ def criterion(pred, y):
     return alpha * loss_1 + loss_2
 
 
-init_lr = 0.0001
+init_lr = 0.00001
 
 optimizer = optim.Adam(
     model.parameters(),
@@ -98,9 +96,9 @@ Trainer.start(
     test_dataloader=test_loader,
     criterion=criterion,
     max_epoch=180,
-    lr_sched=lr_sched,
+    lr_sched=None,
     display_freq=50,
     output_dir=TAG,
-    save_every=1,
-    max_keep=20
+    save_every=5,
+    max_keep=50
 )

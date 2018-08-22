@@ -66,6 +66,6 @@ Trainer.start(
     lr_sched=lr_sched,
     display_freq=50,
     output_dir=TAG,
-    save_every=1,
-    max_keep=20
+    save_every=5,
+    max_keep=50
 )

@@ -41,7 +41,7 @@ optimizer = optim.Adam(
 
 
 def lr_sched(optimizer, epoch):
-    lr = init_lr * (0.5 ** (epoch // 30))
+    lr = init_lr * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -56,6 +56,6 @@ Trainer.start(
     lr_sched=lr_sched,
     display_freq=50,
     output_dir=TAG,
-    save_every=20,
+    save_every=1,
     max_keep=20
 )

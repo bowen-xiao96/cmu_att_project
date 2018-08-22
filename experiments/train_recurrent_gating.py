@@ -14,6 +14,7 @@ from util import Trainer
 from util.model_tools import initialize_vgg
 from model.recurrent_gating import *
 from dataset.cifar.get_cifar10_dataset import get_dataloader
+from util.Padam import Padam
 
 assert len(sys.argv) > 3
 GPU_ID = int(sys.argv[1])
@@ -37,7 +38,7 @@ criterion = nn.CrossEntropyLoss()
 criterion.cuda()
 init_lr = 0.0001
 
-optimizer = optim.Adam(
+optimizer = Padam(
     model.parameters(),
     lr=init_lr,
     weight_decay=1e-3
@@ -60,6 +61,6 @@ Trainer.start(
     lr_sched=lr_sched,
     display_freq=50,
     output_dir=TAG,
-    save_every=1,
-    max_keep=20
+    save_every=5,
+    max_keep=50
 )
