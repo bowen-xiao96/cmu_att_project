@@ -213,6 +213,7 @@ class AttentionNetwork(nn.Module):
 
                     for k, layer in enumerate(self.att_recurrent_b[i]):
                          x = layer(x)
+
                     
                     old_shape = x.size()
 

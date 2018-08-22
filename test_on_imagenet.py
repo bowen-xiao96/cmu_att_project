@@ -136,7 +136,7 @@ def extract_attention_maps(model, x, size=(32, 32)):
     for i, layer in enumerate(model.backbone):
         x = layer(x)
 
-        if i in [15]:
+        if i in [13]:
             feature_maps.append(x)
     
     #x = F.max_pool2d(x, kernel_size=7, stride=7)   
@@ -166,7 +166,7 @@ def extract_attention_maps(model, x, size=(32, 32)):
     return score_maps
     
 
-def extract_recurrent_attention_maps(model, x, size=(224, 224), unroll_count=1):
+def extract_recurrent_attention_v2_maps(model, x, size=(32, 32), unroll_count=1):
     feature_maps = list()
     score_maps = list()
 
@@ -176,6 +176,54 @@ def extract_recurrent_attention_maps(model, x, size=(224, 224), unroll_count=1):
 
         # after relu layer
         if i in [15]:
+            feature_maps.append(x)
+        if i in [29]:
+            break
+
+    features = list()
+    for i, feature_map in enumerate(feature_maps):
+        if unroll_count > 1:
+            recurrent_buf = list()
+            recurrent_buf.append(feature_map)
+
+        for j in range(unroll_count):
+            
+            if unroll_count > 1:
+                feature_map = recurrent_buf[-1]
+
+            for k, layer in enumerate(model.att_recurrent_b[i]):
+                x = layer(x)
+
+            old_shape = x.size()
+
+            score = F.softmax(x.view(old_shape[0], -1), dim=1).view(old_shape)
+
+            x = model.att_recurrent_f[i](torch.cat([score, feature_map], dim=1))
+            if unroll_count > 1:
+                recurrent_buf.append(x)
+
+            # Save score maps
+            # upsample the spatial map
+            score = F.upsample(score, size=size, mode='bilinear')
+            #print(score.shape)
+            score_maps.append(score.data.cpu().numpy())
+
+            for k in range(16, 30):
+                x = model.backbone[k](x)
+        
+    score_maps = np.concatenate(score_maps, axis=1)
+    return score_maps
+
+def extract_recurrent_attention_maps(model, x, size=(224, 224), unroll_count=1):
+    feature_maps = list()
+    score_maps = list()
+
+    feature_maps = list()
+    for i, layer in enumerate(model.backbone):
+        x = layer(x)
+
+        # after relu layer
+        if i in [13]:
             feature_maps.append(x)
 
     # global feature
@@ -227,7 +275,7 @@ def extract_recurrent_attention_maps(model, x, size=(224, 224), unroll_count=1):
             #print(score.shape)
             score_maps.append(score.data.cpu().numpy())
 
-            for k in range(16, len(model.backbone)):
+            for k in range(14, len(model.backbone)):
                 x = model.backbone[k](x)
             
             #print(j)
@@ -308,6 +356,8 @@ if __name__ == '__main__':
                 score_maps.append(extract_recurrent_attention_maps(model, images, size=(32, 32), unroll_count=args.att_unroll_count))
             elif args.task == 'attention':
                 score_maps.append(extract_attention_maps(model, images, size=(32, 32)))
+            elif args.task == 'recurrent_att_v2':
+                score_maps.append(extract_recurrent_attention_v2_maps(model, images, size=(32, 32), unroll_count=args.att_unroll_count))
 
 
     score_maps = np.concatenate(score_maps, axis=0)
