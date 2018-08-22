@@ -137,9 +137,10 @@ def attention_model_training(args):
         net_list = list(net.state_dict().keys())
         pre_list = list(pretrained_dict.keys())
         
-        load_parallel_flag = load_parallel(net_dict)
-       
-        if load_parallel_flag == 0:
+        net_parallel_flag = load_parallel(net_dict)
+        
+        load_parallel_flag = load_parallel(pretrained_dict)
+        if load_parallel_flag != net_parallel_flag:
             from collections import OrderedDict
             new_state_dict = OrderedDict()
             for k, v in pretrained_dict.items():

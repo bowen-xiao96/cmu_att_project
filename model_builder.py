@@ -50,6 +50,7 @@ class AttentionNetwork(nn.Module):
         # Gating Recurrent model
         self.gate_r_layers = getGate_Recurrent(cfg)
         self.gate_start_layers = []
+        self.intermediate_loss = get_Intermediate_loss(cfg)
 
         # the path to save feature map, attention map, origin image
         self.save_att_map = args.save_att_map
@@ -167,7 +168,8 @@ class AttentionNetwork(nn.Module):
                 n = nn.ModuleList()
                 
                 n.append(nn.Conv2d(end_feature_dim, start_feature_dim, kernel_size=1))
-                n.append(PredictionModule(start_feature_dim, num_class, spatial_reduce, dropout=0.5))
+                if self.intermediate_loss == 1:
+                    n.append(PredictionModule(start_feature_dim, num_class, spatial_reduce, dropout=0.5))
                 self.gate_recurrent_f.append(n)
 
         # Set up Attention Layers
@@ -199,7 +201,7 @@ class AttentionNetwork(nn.Module):
         self.print_fe = print_fe 
         feature_maps = list()
 
-        intermediate_pred = list()
+        intermediate_pred = []
 
         # Save origin images
         if self.save_att_map == 1:
@@ -276,8 +278,9 @@ class AttentionNetwork(nn.Module):
                     gate  = self.gate_recurrent_b[i](torch.cat([x, prev], dim=1))
 
                     x = gate * self.gate_recurrent_f[i][0](x) + (1.0 - gate) * prev
-
-                    intermediate_pred.append(self.gate_recurrent_f[i][-1](x))
+                    
+                    if self.intermediate_loss == 1:
+                        intermediate_pred.append(self.gate_recurrent_f[i][-1](x))
 
                     recurrent_buf.append(x)
 
@@ -286,8 +289,9 @@ class AttentionNetwork(nn.Module):
             
                 for j in range(break_point[i], len(self.backbone)):
                     x = self.backbone[j](x)
-
-            intermediate_pred = torch.stack(intermediate_pred, dim=1)
+            
+            if self.intermediate_loss == 1:
+                intermediate_pred = torch.stack(intermediate_pred, dim=1)
 
 
         x = x.view(x.size(0), -1)

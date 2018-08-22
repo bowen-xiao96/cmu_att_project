@@ -277,6 +277,12 @@ def getGate_Recurrent_Setting(i, cfg):
     gate_filter_size = cfg['gate_r'][v]['gate_filter_size']
     return unroll_count, start_layer, spatial_reduce, gate_filter_size
 
+def get_Intermediate_loss(cfg):
+    extra_loss = 0
+    if 'loss_params' in cfg:
+        extra_loss = 1
+    return extra_loss
+
 def get_jet():
     colormap_int = np.zeros((256, 3), np.uint8)
     colormap_float = np.zeros((256, 3), np.float)

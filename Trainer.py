@@ -185,9 +185,6 @@ def test(epoch):
           'Prec@5 {top5.avg:.3f}\t'.format(
         epoch, loss=losses, top1=top1, top5=top5))
 
-    test_loss_history.append(losses)
-    test_top1_history.append(top1)
-
     return top1.avg
 
 
@@ -228,6 +225,8 @@ def main_loop():
         if test_accu > best_accu:
             best_accu = test_accu
             save(i, test_accu, best=True)
+        
+        print("Best Top1:", best_accu)
 
         if save_every_ and i % save_every_ == 0:
             while len(saved_models) >= max_keep_:
