@@ -47,6 +47,10 @@ class AttentionNetwork(nn.Module):
         self.att_r_v2_layers = getAtt_Recurrent_v2(cfg)
         self.start_layers = []
 
+        # Gating Recurrent model
+        self.gate_r_layers = getGate_Recurrent(cfg)
+        self.gate_start_layers = []
+
         # the path to save feature map, attention map, origin image
         self.save_att_map = args.save_att_map
         save_data_path = os.path.join('/data2/simingy/model_data/', args.expId)
@@ -140,9 +144,31 @@ class AttentionNetwork(nn.Module):
                         )
 
                 self.att_recurrent_f.append(match_dim)
-               
+        
+        # Set up Gating Recurrent Layers
+        if self.gate_r_layers != []:
+            self.gate_recurrent_b = nn.ModuleList()
+            self.gate_recurrent_f = nn.ModuleList()
 
+            for v in self.gate_r_layers:
+                self.gate_r_unroll_account, start_layer, spatial_reduce, gate_filter_size = getGate_Recurrent_Setting(v, cfg)
+                self.gate_start_layers.append(start_layer)
 
+                end_feature_dim = self.backbone[v-1].out_channels
+                start_feature_dim = self.backbone[start_layer-1].out_channels
+
+                m = nn.Sequential(
+                        nn.Conv2d(end_feature_dim + start_feature_dim, start_feature_dim, kernel_size=gate_filter_size),
+                        nn.Sigmoid()
+                        )
+                
+                self.gate_recurrent_b.append(m)
+
+                n = nn.ModuleList()
+                
+                n.append(nn.Conv2d(end_feature_dim, start_feature_dim, kernel_size=1))
+                n.append(PredictionModule(start_feature_dim, num_class, spatial_reduce, dropout=0.5))
+                self.gate_recurrent_f.append(n)
 
         # Set up Attention Layers
         if self.attention_layers != []:
@@ -172,7 +198,8 @@ class AttentionNetwork(nn.Module):
         # whether print familiarity effect numbers
         self.print_fe = print_fe 
         feature_maps = list()
-        end_feature_maps = list()
+
+        intermediate_pred = list()
 
         # Save origin images
         if self.save_att_map == 1:
@@ -199,7 +226,12 @@ class AttentionNetwork(nn.Module):
                 feature_maps.append(x)
             if i in self.start_layers:
                 feature_maps.append(x)
+            if i in self.gate_start_layers:
+                feature_maps.append(x)
             if i in self.att_r_v2_layers:
+                break_point.append(i + 1)
+                break
+            if i in self.gate_r_layers:
                 break_point.append(i + 1)
                 break
 
@@ -229,6 +261,34 @@ class AttentionNetwork(nn.Module):
                 for j in range(break_point[i], len(self.backbone)):
                     x = self.backbone[j](x)
 
+        # Gate Recurrent
+        if self.gate_r_layers != []:
+
+            for i, feature_map in enumerate(feature_maps):
+                recurrent_buf = list()
+ 
+                recurrent_buf.append(feature_map)
+                for j in range(self.gate_r_unroll_account):
+                    prev = recurrent_buf[-1]
+                    
+                    x = F.upsample(x, scale_factor=2, mode='bilinear')
+ 
+                    gate  = self.gate_recurrent_b[i](torch.cat([x, prev], dim=1))
+
+                    x = gate * self.gate_recurrent_f[i][0](x) + (1.0 - gate) * prev
+
+                    intermediate_pred.append(self.gate_recurrent_f[i][-1](x))
+
+                    recurrent_buf.append(x)
+
+                    for k in range(self.gate_start_layers[i] + 1, break_point[i]):
+                        x = self.backbone[k](x)
+            
+                for j in range(break_point[i], len(self.backbone)):
+                    x = self.backbone[j](x)
+
+            intermediate_pred = torch.stack(intermediate_pred, dim=1)
+
 
         x = x.view(x.size(0), -1)
 
@@ -239,6 +299,7 @@ class AttentionNetwork(nn.Module):
                     break
             x = layer(x)
 
+        # Attention
         if len(self.attention_layers) != 0:
             features = list()
             for i, feature_map in enumerate(feature_maps):
@@ -276,7 +337,8 @@ class AttentionNetwork(nn.Module):
                 features.append(weighted_sum)
 
             x = self.att_fc(torch.cat(features, dim=1))
-
+        
+        # Attention Recurrent
         if self.att_r_layers != []:
             
             for i, feature_map in enumerate(feature_maps):
@@ -308,5 +370,9 @@ class AttentionNetwork(nn.Module):
             
             x = self.fclayers[-1](x)
 
-        return x
+
+        if intermediate_pred is not None:
+            return intermediate_pred, x
+        else:
+            return x
 

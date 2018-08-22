@@ -39,8 +39,11 @@ def get_parser():
                         help='the name of file loading the model')
     parser.add_argument('--data_path', default='/data2/simingy/data/', type=str, action='store',
                         help='the path of loading data')
-    parser.add_argument('--task', default='cifar10', type=str, action='store',
-                        help='the dataset task')
+    parser.add_argument('--dataset', default='cifar10', type=str, action='store',
+                        help='the dataset name')
+    parser.add_argument('--task', default=None, type=str, action='store',
+                        help='the task name')
+
     parser.add_argument('--load_part_params', default=0, type=int, action='store',
                         help='whether load part parameters of model')
     parser.add_argument('--save_every', default=20, type=int, action='store',
@@ -99,9 +102,9 @@ def attention_model_training(args):
     # --------Build Model--------
 
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
-    if args.task == 'cifar10':
+    if args.dataset == 'cifar10':
         net = AttentionNetwork(network_cfg, args)
-    elif args.task == 'imagenet':
+    elif args.dataset == 'imagenet':
         net = AttentionNetwork(network_cfg, args, num_class=1000)
 
 
@@ -116,6 +119,9 @@ def attention_model_training(args):
         xavier_init(net)
 
     # --------Loss function--------
+    if args.task == 'gate_recurrent':
+        get_loss_params(network_cfg) 
+
     criterion = nn.CrossEntropyLoss().cuda()
 
     start = 0
@@ -207,13 +213,13 @@ def attention_model_training(args):
         optimizer = optim.RMSprop(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
 
     # --------Import Dataset--------
-    if args.task == 'cifar10':
+    if args.dataset == 'cifar10':
         train_loader, test_loader = get_dataloader(
             cifar10_dir=args.data_path,
             batch_size=args.batch_size,
             num_workers=4,
         )
-    elif args.task =='imagenet':
+    elif args.dataset =='imagenet':
         train_loader, test_loader = get_Imagenetloader(
             imn_dir=args.data_path,
             batch_size=args.batch_size,
@@ -225,7 +231,26 @@ def attention_model_training(args):
         print("------I am boundary-------")
         test_it(net, criterion, optimizer)
     else:
-        Trainer.start(
+        if args.task == 'gate_recurrent':
+            Trainer.start(
+                model=net,
+                optimizer=optimizer,
+                train_dataloader=train_loader,
+                test_dataloader=test_loader,
+                criterion=gate_criterion,
+                max_epoch=300,
+                lr_sched=adjust_learning_rate,
+                init_lr= args.init_lr,
+                lr_decay = args.lr_decay,
+                lr_freq = args.lr_freq,
+                display_freq=args.display_freq,
+                output_dir=args.save_dir+args.expId,
+                save_every=args.save_every,
+                max_keep=20,
+                save_model_data='/data2/simingy/model_data/'+args.expId
+                )
+        else:
+            Trainer.start(
                 model=net,
                 optimizer=optimizer,
                 train_dataloader=train_loader,
@@ -241,7 +266,8 @@ def attention_model_training(args):
                 save_every=args.save_every,
                 max_keep=20,
                 save_model_data='/data2/simingy/model_data/'+args.expId
-            )           
+                )
+
     
 def main():
     parser = get_parser()

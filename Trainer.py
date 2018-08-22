@@ -112,6 +112,9 @@ def train_one_epoch(epoch):
         # compute output
         pred = model_(x)
         loss = criterion_(pred, y)
+        
+        if isinstance(pred, tuple):
+            pred = pred[-1]
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
@@ -166,6 +169,9 @@ def test(epoch):
         # compute output
         pred = model_(x)
         loss = criterion_(pred, y)
+
+        if isinstance(pred, tuple):
+            pred = pred[-1]
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))

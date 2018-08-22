@@ -216,6 +216,9 @@ def getConvSetting(i, cfg, layer_name='layers'):
     output_dim = cfg[layer_name][i]['conv']['num_filters']
     kernel_size = cfg[layer_name][i]['conv']['filter_size']
     padding = 1
+    if 'padding' in cfg[layer_name][i]['conv']:
+        padding = cfg[layer_name][i]['conv']['padding']
+
     return output_dim, kernel_size, padding
 
 def getAttentionLayer(cfg):
@@ -258,6 +261,22 @@ def getAtt_Recurrent_v2_Setting(i, cfg):
     start_layer = cfg['att_r_v2'][v]['back']
     return unroll_count, start_layer
 
+def getGate_Recurrent(cfg):
+    gate_recurrent_layer = []
+    if 'gate_r' in cfg:
+        for i, number in enumerate(cfg['gate_r']):
+            gate_recurrent_layer.append(int(number))
+
+    return gate_recurrent_layer
+
+def getGate_Recurrent_Setting(i, cfg):
+    v = str(i)
+    unroll_count = cfg['gate_r'][v]['unroll_count']
+    start_layer = cfg['gate_r'][v]['back']
+    spatial_reduce = (cfg['gate_r'][v]['spatial_reduce'] == 1)
+    gate_filter_size = cfg['gate_r'][v]['gate_filter_size']
+    return unroll_count, start_layer, spatial_reduce, gate_filter_size
+
 def get_jet():
     colormap_int = np.zeros((256, 3), np.uint8)
     colormap_float = np.zeros((256, 3), np.float)
@@ -296,3 +315,82 @@ def load_parallel(pre_dict):
             ret_val = 1
     
     return ret_val
+
+
+class PredictionModule(nn.Module):
+    def __init__(self, input_dim, attention_map_dim, spatial_reduce, dropout=0.5):
+        super(PredictionModule, self).__init__()
+        self.spatial_reduce = spatial_reduce
+
+        self.stream_a = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Conv2d(input_dim, attention_map_dim, kernel_size=1),
+            nn.Dropout(p=dropout),
+            nn.Softplus(beta=1.0)
+        )
+
+        self.stream_d = nn.Conv2d(input_dim, attention_map_dim, kernel_size=1)
+
+    def forward(self, x):
+        stream_a = self.stream_a(x) + 0.1
+
+        # do spatial normalization on all channels
+        spatial_sum = torch.sum(torch.sum(stream_a, dim=3, keepdim=True), dim=2, keepdim=True)
+        stream_a = stream_a / spatial_sum
+
+        stream_d = self.stream_d(x)
+
+        # mix together and classify
+        output = stream_a * stream_d
+
+        # if spatial_reduce is on, we output the mean value of the spatial map
+        if self.spatial_reduce:
+            output = torch.mean(torch.mean(output, dim=3), dim=2)
+        
+        return output
+
+weights = list()
+gamma = 0
+alpha = 0
+
+def get_loss_params(cfg):
+    global weights, alpha, gamma
+    weights = list()
+    gamma = cfg['loss_params']['gamma']
+    alpha = cfg['loss_params']['alpha']
+    unroll_count = cfg['loss_params']['unroll_count']
+    for i in range(unroll_count):
+        if i == 0:
+            weights.append(gamma)
+        else:
+            weights.append(weights[-1] * gamma)
+
+    # like (0.9**5, 0.9**4, 0.9**3, 0.9**2, 0.9)
+    weights = torch.FloatTensor(list(reversed(weights)))
+    # normalize to sum=1.0
+    weights /= torch.sum(weights)
+    weights = A.Variable(weights.cuda())
+
+def gate_criterion(pred, y):
+
+    intermediate_pred, final_pred = pred
+
+    # batch_size * unroll_count * num_class
+    old_size = intermediate_pred.size()
+    batch_size, time_step = old_size[:2]
+    # flatten into (-1, num_class)
+    new_size = torch.Size([batch_size * time_step] + list(old_size[2:]))
+    intermediate_pred = intermediate_pred.view(new_size)
+
+    loss_1 = F.cross_entropy(
+            intermediate_pred,
+            y.repeat(time_step, 1).transpose(0, 1).contiguous().view(-1), reduce=False
+            )
+    # average over batches
+    loss_1 = torch.sum(loss_1 * weights.repeat(batch_size)) / batch_size
+
+    loss_2 = F.cross_entropy(final_pred, y)
+
+    return alpha * loss_1 + loss_2
+
+
