@@ -76,7 +76,7 @@ class RecurrentGatingRefinementModel(nn.Module):
         self.projection = nn.Conv2d(512, 128, kernel_size=1)
 
         self.gating = nn.Sequential(
-            nn.Conv2d(512 + 128, 128, kernel_size=3, padding=1),  # alternative: 1x1 convolution
+            nn.Conv2d(512 + 128, 128, kernel_size=1),
             nn.Sigmoid()
         )
 

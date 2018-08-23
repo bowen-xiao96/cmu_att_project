@@ -11,9 +11,11 @@ def get_dataloader(cifar10_dir, batch_size, num_workers):
     std = np.array([0.24703233, 0.24348505, 0.26158768])
     normalize = transforms.Normalize(mean, std)
 
-    # during training, only random horizontal flip is used for augmentation
     train_transform = transforms.Compose([
         transforms.RandomHorizontalFlip(),
+        # random crop
+        # very essential
+        transforms.RandomCrop(32, 4),
         transforms.ToTensor(),
         normalize
     ])

@@ -2,7 +2,6 @@ import os, sys
 import numpy as np
 
 import torch.backends.cudnn as cudnn
-
 cudnn.benchmark = True
 
 import torch
@@ -19,7 +18,11 @@ from dataset.cifar.get_cifar10_dataset import get_dataloader
 
 assert len(sys.argv) > 3
 GPU_ID = int(sys.argv[1])
-os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+if GPU_ID != -1:
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+else:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+
 unroll_count = int(sys.argv[2])
 TAG = sys.argv[3]
 
@@ -36,7 +39,7 @@ train_loader, test_loader = get_dataloader(
 )
 
 alpha = 0.5  # control the weight between losses at final classifier and intermediate prediction
-gamma = 0.9  # control the weight of losses at each time step
+gamma = 0.5  # control the weight of losses at each time step
 weights = list()
 for i in range(unroll_count):
     if i == 0:
@@ -44,10 +47,12 @@ for i in range(unroll_count):
     else:
         weights.append(weights[-1] * gamma)
 
-# like (0.9**5, 0.9**4, 0.9**3, 0.9**2, 0.9)
+# like (gamma**5, gamma**4, gamma**3, gamma**2, gamma)
 weights = torch.FloatTensor(list(reversed(weights)))
 # normalize to sum=1.0
 weights /= torch.sum(weights)
+print('Loss weights for different time steps:')
+print(weights)
 weights = A.Variable(weights.cuda())
 
 
@@ -74,7 +79,7 @@ def criterion(pred, y):
     return alpha * loss_1 + loss_2
 
 
-init_lr = 0.00001
+init_lr = 0.0001
 
 optimizer = optim.Adam(
     model.parameters(),
@@ -96,7 +101,7 @@ Trainer.start(
     test_dataloader=test_loader,
     criterion=criterion,
     max_epoch=180,
-    lr_sched=None,
+    lr_sched=lr_sched,
     display_freq=50,
     output_dir=TAG,
     save_every=5,
