@@ -8,6 +8,7 @@ import torch
 import torch.autograd as A
 import torch.nn as nn
 import torch.optim as optim
+from utils import add_gaussian_noise
 #import matplotlib.pyplot as plt
 
 # ========== state data ==========
@@ -31,6 +32,8 @@ output_dir_ = None
 save_every_ = None
 max_keep_ = None
 save_model_data_ = None
+add_noise_ = None
+test_model_ = None
 
 train_loss_history = []
 train_top1_history = []
@@ -115,6 +118,8 @@ def train_one_epoch(epoch):
         
         if isinstance(pred, tuple):
             pred = pred[-1]
+        if isinstance(pred, list):
+            pred = pred[-1]
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
@@ -165,6 +170,9 @@ def test(epoch):
 
         x = A.Variable(x.cuda(), volatile=True)
         y = A.Variable(y.cuda(), volatile=True)
+        
+        if add_noise_ == 1:
+            x = add_gaussian_noise(x)
 
         # compute output
         pred = model_(x)
@@ -217,8 +225,10 @@ def main_loop():
         
         if lr_sched_:
             lr_sched_(optimizer_, i, init_lr=init_lr_, lr_decay=lr_decay_, lr_freq=lr_freq_)
-                    
-        train_one_epoch(i)
+        
+        if test_model_ == 0:
+            train_one_epoch(i)
+
         test_accu = test(i)
 
         # save models

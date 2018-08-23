@@ -269,6 +269,14 @@ def getGate_Recurrent(cfg):
 
     return gate_recurrent_layer
 
+def getGate_Recurrent_v2(cfg):
+    gate_recurrent_layer = []
+    if 'gate_r_v2' in cfg:
+        for i, number in enumerate(cfg['gate_r_v2']):
+            gate_recurrent_layer.append(int(number))
+
+    return gate_recurrent_layer
+
 def getGate_Recurrent_Setting(i, cfg):
     v = str(i)
     unroll_count = cfg['gate_r'][v]['unroll_count']
@@ -276,6 +284,13 @@ def getGate_Recurrent_Setting(i, cfg):
     spatial_reduce = (cfg['gate_r'][v]['spatial_reduce'] == 1)
     gate_filter_size = cfg['gate_r'][v]['gate_filter_size']
     return unroll_count, start_layer, spatial_reduce, gate_filter_size
+
+def getGate_Recurrent_v2_Setting(i, cfg):
+    v = str(i)
+    unroll_count = cfg['gate_r_v2'][v]['unroll_count']
+    start_layer = cfg['gate_r_v2'][v]['back']
+    gate_filter_size = cfg['gate_r_v2'][v]['gate_filter_size']
+    return unroll_count, start_layer, gate_filter_size
 
 def get_Intermediate_loss(cfg):
     extra_loss = 0
@@ -399,4 +414,41 @@ def gate_criterion(pred, y):
 
     return alpha * loss_1 + loss_2
 
+def gate_v2_criterion(pred, y):
 
+    unroll_number = len(pred)
+    batch_size = pred[0][0]
+    loss_list = []
+    gamma = 0.5
+    weights = []
+    for i in range(unroll_number):
+        if i == 0:
+            weights.append(gamma)
+        else:
+            weights.append(weights[-1] * gamma)
+
+    # like (0.9**5, 0.9**4, 0.9**3, 0.9**2, 0.9)
+    weights = torch.FloatTensor(list(reversed(weights)))
+    weights /= torch.sum(weights)
+    weights = A.Variable(weights.cuda())
+
+    final_loss = 0.0
+    for i in range(unroll_number):
+        loss_temp = F.cross_entropy(pred[i], y)
+        final_loss += loss_temp * weights[i]
+    
+    return final_loss
+    
+def add_gaussian_noise(image, mean=0.0, stddev=1.0):
+ 
+    img_data = image.data.cpu().numpy()
+    noise = np.random.normal(mean, stddev, size=(img_data.shape))
+    mask = np.random.choice([0, 1], size=(img_data.shape[2], img_data.shape[3]), p=[5./6, 1./6])
+    mask = np.expand_dims(mask, axis=0)
+    mask = np.expand_dims(mask, axis=0)
+    mask = np.tile(mask, [noise.shape[0], noise.shape[1], 1, 1])
+
+    noise = noise * mask
+    noise = Variable(torch.from_numpy(noise).float().cuda())
+
+    return image + noise

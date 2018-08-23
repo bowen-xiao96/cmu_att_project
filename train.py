@@ -48,6 +48,8 @@ def get_parser():
                         help='whether load part parameters of model')
     parser.add_argument('--save_every', default=20, type=int, action='store',
                         help='how often to save the model')
+    parser.add_argument('--test_model', default=0, type=int, action='store',
+                        help='whether test the model')
 
     # Network settings
     parser.add_argument('--network_config', default=None, type=str, action='store',
@@ -62,7 +64,8 @@ def get_parser():
                         help='How to initialize network weights')
     parser.add_argument('--fix_load_weight', default=0, type=int, action='store',
                         help='whethter fix the loaded weights')
-
+    parser.add_argument('--add_noise', default=0, type=int, action='store',
+                        help='whether add gaussian noise when testing the model')
 
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
@@ -248,7 +251,29 @@ def attention_model_training(args):
                 output_dir=args.save_dir+args.expId,
                 save_every=args.save_every,
                 max_keep=20,
-                save_model_data='/data2/simingy/model_data/'+args.expId
+                save_model_data='/data2/simingy/model_data/'+args.expId,
+                add_noise=args.add_noise,
+                test_model=args.test_model,
+                )
+        elif args.task == 'gate_recurrent_v2':
+            Trainer.start(
+                model=net,
+                optimizer=optimizer,
+                train_dataloader=train_loader,
+                test_dataloader=test_loader,
+                criterion=gate_v2_criterion,
+                max_epoch=300,
+                lr_sched=adjust_learning_rate,
+                init_lr= args.init_lr,
+                lr_decay = args.lr_decay,
+                lr_freq = args.lr_freq,
+                display_freq=args.display_freq,
+                output_dir=args.save_dir+args.expId,
+                save_every=args.save_every,
+                max_keep=20,
+                save_model_data='/data2/simingy/model_data/'+args.expId,
+                add_noise=args.add_noise,
+                test_model=args.test_model,
                 )
         else:
             Trainer.start(
@@ -266,7 +291,9 @@ def attention_model_training(args):
                 output_dir=args.save_dir+args.expId,
                 save_every=args.save_every,
                 max_keep=20,
-                save_model_data='/data2/simingy/model_data/'+args.expId
+                save_model_data='/data2/simingy/model_data/'+args.expId,
+                add_noise=args.add_noise,
+                test_model=args.test_model,
                 )
 
     
