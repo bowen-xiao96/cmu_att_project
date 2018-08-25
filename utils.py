@@ -204,6 +204,13 @@ def getBN(i, cfg, layer_name='layers'):
 
     return ret_val
 
+def getReLU(i, cfg, layer_name='layers'):
+    ret_val = 0
+    if 'relu' in cfg[layer_name][i]:
+        ret_val = cfg[layer_name][i]['relu']
+
+    return ret_val
+
 def getMaxPooling(i, cfg, layer_name='layers'):
     ret_val = False
     if 'pool' in cfg[layer_name][i]:
@@ -290,7 +297,11 @@ def getGate_Recurrent_v2_Setting(i, cfg):
     unroll_count = cfg['gate_r_v2'][v]['unroll_count']
     start_layer = cfg['gate_r_v2'][v]['back']
     gate_filter_size = cfg['gate_r_v2'][v]['gate_filter_size']
-    return unroll_count, start_layer, gate_filter_size
+    gate_dropout = 0
+    if 'dropout' in cfg['gate_r_v2'][v]:
+        gate_dropout = cfg['gate_r_v2'][v]['dropout']
+
+    return unroll_count, start_layer, gate_filter_size, gate_dropout
 
 def get_Intermediate_loss(cfg):
     extra_loss = 0
@@ -376,10 +387,14 @@ alpha = 0
 
 def get_loss_params(cfg):
     global weights, alpha, gamma
-    weights = list()
-    gamma = cfg['loss_params']['gamma']
-    alpha = cfg['loss_params']['alpha']
-    unroll_count = cfg['loss_params']['unroll_count']
+    
+    if 'gamma' in cfg['loss_params']:
+        gamma = cfg['loss_params']['gamma']
+    if 'alpha' in cfg['loss_params']:
+        alpha = cfg['loss_params']['alpha']
+    if 'unroll_count' in cfg['loss_params']:
+        unroll_count = cfg['loss_params']['unroll_count']
+
     for i in range(unroll_count):
         if i == 0:
             weights.append(gamma)
@@ -419,18 +434,6 @@ def gate_v2_criterion(pred, y):
     unroll_number = len(pred)
     batch_size = pred[0][0]
     loss_list = []
-    gamma = 0.5
-    weights = []
-    for i in range(unroll_number):
-        if i == 0:
-            weights.append(gamma)
-        else:
-            weights.append(weights[-1] * gamma)
-
-    # like (0.9**5, 0.9**4, 0.9**3, 0.9**2, 0.9)
-    weights = torch.FloatTensor(list(reversed(weights)))
-    weights /= torch.sum(weights)
-    weights = A.Variable(weights.cuda())
 
     final_loss = 0.0
     for i in range(unroll_number):

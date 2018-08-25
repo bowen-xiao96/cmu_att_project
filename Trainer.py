@@ -3,6 +3,7 @@ import os, sys
 import time
 import shutil
 import pickle
+import numpy as np
 
 import torch
 import torch.autograd as A
@@ -34,6 +35,7 @@ max_keep_ = None
 save_model_data_ = None
 add_noise_ = None
 test_model_ = None
+start_loc_ = 0
 
 train_loss_history = []
 train_top1_history = []
@@ -180,6 +182,8 @@ def test(epoch):
 
         if isinstance(pred, tuple):
             pred = pred[-1]
+        if isinstance(pred, list):
+            pred = pred[-1]
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
@@ -218,8 +222,11 @@ def main_loop():
 
     best_accu = -1.0
     saved_models = list()      
+    
+    save_accuracy = np.zeros((max_epoch_, 1))
+    save_lr = np.zeros((max_epoch_, 1))
 
-    for i in range(max_epoch_):
+    for i in range(start_loc_, max_epoch_):
         if call_back_:
             call_back_(globals(), i)
         
@@ -230,6 +237,10 @@ def main_loop():
             train_one_epoch(i)
 
         test_accu = test(i)
+
+        save_accuracy[i] = test_accu
+        for param_group in optimizer_.param_groups:
+                save_lr[i] = param_group['lr']
 
         # save models
         if test_accu > best_accu:
@@ -248,6 +259,8 @@ def main_loop():
 
             model_file = save(i, test_accu)
             saved_models.append(model_file)
+
+        np.savez(os.path.join(output_dir_, 'training_data.npz'), acc=save_accuracy, lr=save_lr)
 
 
 

@@ -66,6 +66,10 @@ def get_parser():
                         help='whethter fix the loaded weights')
     parser.add_argument('--add_noise', default=0, type=int, action='store',
                         help='whether add gaussian noise when testing the model')
+    parser.add_argument('--gate', default=0, type=int, action='store',
+                        help='which type of gate do you use?\
+                            0. gate * post + (1 - gate) * prev\
+                            1. gate * post + 1 * prev')
 
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
@@ -122,8 +126,9 @@ def attention_model_training(args):
         xavier_init(net)
 
     # --------Loss function--------
-    if args.task == 'gate_recurrent':
-        get_loss_params(network_cfg) 
+
+    if args.task == 'gate_recurrent' or args.task == 'gate_recurrent_v2':
+        get_loss_params(network_cfg)
 
     criterion = nn.CrossEntropyLoss().cuda()
 
@@ -132,6 +137,8 @@ def attention_model_training(args):
     # --------Load File--------
     if args.load_file is not None:
         prefix = (args.load_file).split('.')[-1]
+        start = (int)((((args.load_file).split('.'))[0].split('/'))[-1])
+        print(start)
         if prefix == 'pth':
             pretrained_dict = torch.load(args.load_file)
         elif prefix == 'pkl':
@@ -254,6 +261,7 @@ def attention_model_training(args):
                 save_model_data='/data2/simingy/model_data/'+args.expId,
                 add_noise=args.add_noise,
                 test_model=args.test_model,
+                start_loc=start,
                 )
         elif args.task == 'gate_recurrent_v2':
             Trainer.start(
@@ -274,6 +282,7 @@ def attention_model_training(args):
                 save_model_data='/data2/simingy/model_data/'+args.expId,
                 add_noise=args.add_noise,
                 test_model=args.test_model,
+                start_loc=start,
                 )
         else:
             Trainer.start(
