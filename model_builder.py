@@ -347,6 +347,7 @@ class AttentionNetwork(nn.Module):
  
                 recurrent_buf.append(feature_map)
                 for j in range(self.gate_r_unroll_account):
+
                     prev = recurrent_buf[-1]
                     
                     x = F.upsample(x, scale_factor=2, mode='bilinear')
@@ -359,6 +360,9 @@ class AttentionNetwork(nn.Module):
                         x = gate * self.gate_recurrent_f[i][0](x) + prev
                     elif self.gate == 2:
                         x = gate * prev
+                    elif self.gate == 3:
+                        x = gate * prev + self.gate_recurrent_f[i][0](x)
+
                    
                     if self.intermediate_loss == 1:
                         intermediate_pred.append(self.gate_recurrent_f[i][-1](x))
@@ -398,6 +402,8 @@ class AttentionNetwork(nn.Module):
                         x = gate * self.gate_recurrent_f[i](x) + prev
                     elif self.gate == 2:
                         x = gate * prev
+                    elif self.gate == 3:
+                        x = gate * prev + self.gate_recurrent_f[i](x)
 
                     recurrent_buf.append(x)
 

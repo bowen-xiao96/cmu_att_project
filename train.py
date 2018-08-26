@@ -137,8 +137,11 @@ def attention_model_training(args):
     # --------Load File--------
     if args.load_file is not None:
         prefix = (args.load_file).split('.')[-1]
-        start = (int)((((args.load_file).split('.'))[0].split('/'))[-1])
-        print(start)
+        if 'best' in args.load_file:
+            start = 0
+        else:
+            start = (int)((((args.load_file).split('.'))[0].split('/'))[-1])
+
         if prefix == 'pth':
             pretrained_dict = torch.load(args.load_file)
         elif prefix == 'pkl':
@@ -193,8 +196,10 @@ def attention_model_training(args):
                 name = 'backbone.' + k[9:]
                 new_state_dict[name] = v
 
-        load_parallel_flag = load_parallel(net_dict)
-        if load_parallel_flag == 1:
+        net_parallel_flag = load_parallel(net_dict)        
+        load_parallel_flag = load_parallel(pretrained_dict)
+
+        if load_parallel_flag != net_parallel_flag:
             new2_state_dict = OrderedDict()
             for k, v in new_state_dict.items():
                 name = 'module.' + k # add `module.`

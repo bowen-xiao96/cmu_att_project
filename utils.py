@@ -442,7 +442,7 @@ def gate_v2_criterion(pred, y):
     
     return final_loss
     
-def add_gaussian_noise(image, mean=0.0, stddev=1.0):
+def add_gaussian_noise(image, mean=0.0, stddev=0.5):
  
     img_data = image.data.cpu().numpy()
     noise = np.random.normal(mean, stddev, size=(img_data.shape))
@@ -452,6 +452,7 @@ def add_gaussian_noise(image, mean=0.0, stddev=1.0):
     mask = np.tile(mask, [noise.shape[0], noise.shape[1], 1, 1])
 
     noise = noise * mask
+    image = image * Variable(torch.from_numpy((1 - mask)).float().cuda())
     noise = Variable(torch.from_numpy(noise).float().cuda())
 
     return image + noise
