@@ -70,6 +70,8 @@ def get_parser():
                         help='which type of gate do you use?\
                             0. gate * post + (1 - gate) * prev\
                             1. gate * post + 1 * prev')
+    parser.add_argument('--save_gate', default=0, type=int, action='store',
+                        help='whether save gate weights')
 
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
@@ -240,7 +242,7 @@ def attention_model_training(args):
             imn_dir=args.data_path,
             batch_size=args.batch_size,
             num_workers=8,
-        )
+        ) 
 
     if args.print_fe == 1:
         train_it_one(net, criterion, optimizer)
@@ -288,6 +290,7 @@ def attention_model_training(args):
                 add_noise=args.add_noise,
                 test_model=args.test_model,
                 start_loc=start,
+                save_gate=args.save_gate,
                 )
         else:
             Trainer.start(

@@ -40,3 +40,22 @@ def show_status(expId, data_path='/data2/simingy/model/'):
     plt.plot(x_list, y_list)
     plt.title('learning rate')
 
+
+def show_weights(expId, data_path='/data2/simingy/model'):
+    plt.figure(figsize=(5, 5))
+    ax.set_color_cycle(['red', 'black', 'yellow', 'green', 'blue', 'orange'])
+    for i in range(6):
+        data_file = os.path.join(data_path, expId, 'gate_' + str(i) + '.npz')
+        data_file = np.load(data_file)
+        gate_weights = data_file['gate']
+        gate_weights = np.abs(gate_weights)
+
+        gate_max = np.max(gate_weights)
+        print("gate_{} max:{}".format(i, gate_max))
+        x_axis = []
+        y_axis = []
+        for j in range(10):
+            x_axis.append(len(np.where(gate_weights > gate_max * (9-j) * 0.1)))
+            y_axis.append(gate_max * (9-j) * 0.1)
+
+        plt.plot(x_axis, y_axis)

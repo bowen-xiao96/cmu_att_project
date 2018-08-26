@@ -36,6 +36,7 @@ save_model_data_ = None
 add_noise_ = None
 test_model_ = None
 start_loc_ = 0
+save_gate_ = 0
 
 train_loss_history = []
 train_top1_history = []
@@ -225,7 +226,7 @@ def main_loop():
     
     save_accuracy = np.zeros((max_epoch_, 1))
     save_lr = np.zeros((max_epoch_, 1))
-
+    
     for i in range(start_loc_, max_epoch_):
         if call_back_:
             call_back_(globals(), i)
@@ -261,6 +262,22 @@ def main_loop():
             saved_models.append(model_file)
 
         np.savez(os.path.join(output_dir_, 'training_data.npz'), acc=save_accuracy, lr=save_lr)
+
+        if save_gate_ == 1:
+            print("Save Gate weights!")
+            model_dict = model_.state_dict()
+
+            for k, v in model_dict.items():
+                if 'gate_recurrent_b.0.0.weight' == k:
+                    print(v.size())
+                    
+                    v_numpy = v.cpu().numpy()
+                    
+                    np.savez(os.path.join(output_dir_, 'gate_' + str(start_loc_) + '.npz'), gate=v_numpy)
+            break
+
+
+
 
 
 
