@@ -1,17 +1,32 @@
+import os, sys
 import torch
 
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-
 if __name__ == '__main__':
-    cifar10_dir = r'.'
-    dataset = CIFAR10(
-        cifar10_dir,
-        train=True,
-        transform=transforms.ToTensor()
-    )
+    assert len(sys.argv) > 1
+    flag = sys.argv[1]
+
+    if flag == 'cifar10':
+        cifar10_dir = r'.'
+        dataset = CIFAR10(
+            cifar10_dir,
+            train=True,
+            transform=transforms.ToTensor()
+        )
+
+    elif flag == 'cifar100':
+        cifar100_dir = '.'
+        dataset = CIFAR100(
+            cifar100_dir,
+            train=True,
+            transform=transforms.ToTensor()
+        )
+
+    else:
+        raise NotImplementedError
 
     dataloader = DataLoader(
         dataset,
