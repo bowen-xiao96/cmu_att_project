@@ -2,6 +2,7 @@
 import os, sys
 import time
 import pickle
+import numpy as np
 
 import torch
 import torch.autograd as A
@@ -24,6 +25,11 @@ output_dir_ = None
 save_every_ = None
 max_keep_ = None
 
+train_loss_ = None
+train_top1_accu_ = None
+test_loss_ = None
+test_top1_accu_ = None
+
 
 # ========== end state data ==========
 
@@ -36,6 +42,11 @@ def start(**kwargs):
         k_ = k + '_'
         if k_ in globals():
             globals()[k_] = v
+
+    globals()['train_loss_'] = list()
+    globals()['train_top1_accu_'] = list()
+    globals()['test_loss_'] = list()
+    globals()['test_top1_accu_'] = list()
 
     print('* Start training... *')
     main_loop()
@@ -56,6 +67,9 @@ def train_one_epoch(epoch):
         # measure data loading time
         data_time.update(time.time() - end)
 
+        if call_back_:
+            call_back_(epoch, i, locals(), globals())
+
         x = A.Variable(x.cuda())
         y = A.Variable(y.cuda())
 
@@ -69,8 +83,11 @@ def train_one_epoch(epoch):
         if isinstance(pred, tuple):
             pred = pred[-1]
 
-        prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
+        train_loss_.append(loss.data[0])
         losses.update(loss.data[0], batch_size)
+
+        prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
+        train_top1_accu_.append(prec1[0])
         top1.update(prec1[0], batch_size)
         top5.update(prec5[0], batch_size)
 
@@ -122,8 +139,11 @@ def test(epoch):
         if isinstance(pred, tuple):
             pred = pred[-1]
 
-        prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
+        test_loss_.append(loss.data[0])
         losses.update(loss.data[0], batch_size)
+
+        prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
+        test_top1_accu_.append(prec1[0])
         top1.update(prec1[0], batch_size)
         top5.update(prec5[0], batch_size)
 
@@ -137,6 +157,16 @@ def test(epoch):
 
 
 def save(i, test_accu, best=False):
+    # save training log
+    np.savez(
+        os.path.join(output_dir_, 'training_log.npz'),
+        train_loss=np.array(train_loss_),
+        train_top1_accu=np.array(train_top1_accu_),
+        test_loss=np.array(test_loss_),
+        test_top1_accu=np.array(test_top1_accu_)
+    )
+
+    # save model
     if not best:
         model_name = os.path.join(output_dir_, str(i) + '.pkl')
     else:
@@ -158,9 +188,6 @@ def main_loop():
     saved_models = list()
 
     for i in range(max_epoch_):
-        if call_back_:
-            call_back_(globals(), i)
-
         if lr_sched_:
             lr_sched_(optimizer_, i)
 
