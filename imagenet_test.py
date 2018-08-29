@@ -70,6 +70,9 @@ def get_dataloader(root_dir, mode, noise, batch_size, num_workers, sigma=None):
 
 
 if __name__ == '__main__':
+    # fix the seed of the random generator
+    np.random.seed(0)
+
     assert len(sys.argv) > 3
     # mode=0: original vgg pytorch model, mode=1: original vgg caffe model
     # mode=2: recurrent gating model
@@ -86,6 +89,7 @@ if __name__ == '__main__':
     # load model
     if mode == 2:
         # recurrent gating model
+        # such hyperparams are fixed
         connections = (
             (13, 8, 256, 128, 2),
             (20, 15, 512, 256, 2)
