@@ -40,12 +40,12 @@ def get_dataloader(root_dir, mode, noise, batch_size, num_workers, sigma=None):
         img = np.transpose(img, (2, 0, 1)).copy()
         return torch.from_numpy(img)
 
-    if mode == 0:
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-    else:
+    if mode == 1:
         mean = np.array([103.939, 116.779, 123.68])
         std = np.array([1.0, 1.0, 1.0])
+    else:
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
 
     normalize = transforms.Normalize(mean, std)
     transform = transforms.Compose([
