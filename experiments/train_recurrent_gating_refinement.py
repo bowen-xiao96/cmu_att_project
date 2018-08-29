@@ -53,7 +53,7 @@ weights = torch.FloatTensor(list(reversed(weights)))
 weights /= torch.sum(weights)
 print('Loss weights for different time steps:')
 print(weights)
-weights = A.Variable(weights.cuda())
+weights = A.Variable(weights.cuda(), requires_grad=False)
 
 
 def criterion(pred, y):

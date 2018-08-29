@@ -110,9 +110,9 @@ class MultipleRecurrentModel(nn.Module):
             # can modify the settings below
             # kernel_size, stride, padding, output_padding
             if scale_factor == 1:
-                gating = GatingModule(low_layer_dim, high_layer_dim, (3, 1, 1, 0), 3, 1, dropout=0.0)
+                gating = GatingModule(low_layer_dim, high_layer_dim, (3, 1, 1, 0), 3, 1, dropout=0.5)
             elif scale_factor == 2:
-                gating = GatingModule(low_layer_dim, high_layer_dim, (3, 2, 1, 1), 3, 1, dropout=0.0)
+                gating = GatingModule(low_layer_dim, high_layer_dim, (3, 2, 1, 1), 3, 1, dropout=0.5)
             else:
                 # TODO: long connection across two blocks
                 raise NotImplementedError
