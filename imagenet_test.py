@@ -14,6 +14,8 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
+sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
+
 from torchvision.models import vgg16
 from model.multiple_recurrent_l import *
 from util.metric import accuracy
@@ -74,10 +76,12 @@ if __name__ == '__main__':
     np.random.seed(0)
 
     assert len(sys.argv) > 3
-    # mode=0: original vgg pytorch model, mode=1: original vgg caffe model
+    # mode=0: original vgg16 pytorch model
+    # mode=1: original vgg16 caffe model
     # mode=2: recurrent gating model
-    # occlusion=0: no noise, occlusion=1: add noise
-    # if occlusion=1, we need an additional sigma parameter
+
+    # noise=0: no noise, noise=1: add noise
+    # if noise=1, we need an additional sigma parameter
     model_file = sys.argv[1]
     mode = int(sys.argv[2])
     noise = int(sys.argv[3])
@@ -89,7 +93,7 @@ if __name__ == '__main__':
     # load model
     if mode == 2:
         # recurrent gating model
-        # such hyperparams are fixed
+        # such hyperparameters are fixed
         connections = (
             (13, 8, 256, 128, 2),
             (20, 15, 512, 256, 2)
