@@ -72,6 +72,8 @@ def get_parser():
                             1. gate * post + 1 * prev')
     parser.add_argument('--save_gate', default=0, type=int, action='store',
                         help='whether save gate weights')
+    parser.add_argument('--noise_level', default=0, type=int, action='store',
+                        help='the level of adding noise')
 
     # Learning rate settings
     parser.add_argument('--init_lr', default=0.1, type=float, action='store',
@@ -88,6 +90,9 @@ def get_parser():
                         help='frequency to show the training information')
     parser.add_argument('--change_sgd', default=0, type=int, action='store',
                         help='whether change optimizer after 1 epoch')
+    parser.add_argument('--weight_decay', default=5e-4, type=float, action='store',
+                        help='weight decay of learning rate')
+
     # Attention Settings
     parser.add_argument('--save_att_map', default=0, type=int, action='store',
                         help='whether save attention map')
@@ -113,7 +118,7 @@ def attention_model_training(args):
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
     if args.dataset == 'cifar10':
         net = AttentionNetwork(network_cfg, args)
-    elif args.dataset == 'imagenet':
+    elif args.dataset == 'imagenet' or args.dataset == 'noise_imagenet':
         net = AttentionNetwork(network_cfg, args, num_class=1000)
 
 
@@ -129,7 +134,7 @@ def attention_model_training(args):
 
     # --------Loss function--------
 
-    if args.task == 'gate_recurrent' or args.task == 'gate_recurrent_v2':
+    if args.task == 'gate_recurrent' or args.task == 'gate_recurrent_v2' or args.task =='gate_recurrent_v2_1':
         get_loss_params(network_cfg)
 
     criterion = nn.CrossEntropyLoss().cuda()
@@ -219,18 +224,62 @@ def attention_model_training(args):
         net.load_state_dict(net_dict)
         print("Successfully load parameters..")
 
+    if args.load_vgg16 == 2:
+        pretrained_dict = model_zoo.load_url(model_urls['vgg16'])
+
+        net_dict = net.state_dict()
+        from collections import OrderedDict
+
+        new_state_dict = OrderedDict()
+        for k, v in pretrained_dict.items():
+            if 'feature' in k:
+                name = 'backbone.' + k[9:]
+                new_state_dict[name] = v
+            elif 'classifier' in k:
+                name = 'fclayers.' + k[11:]
+                new_state_dict[name] = v
+
+        net_parallel_flag = load_parallel(net_dict)        
+        load_parallel_flag = load_parallel(pretrained_dict)
+
+        if load_parallel_flag != net_parallel_flag:
+            new2_state_dict = OrderedDict()
+            for k, v in new_state_dict.items():
+                name = 'module.' + k # add `module.`
+                new2_state_dict[name] = v
+        else:
+            new2_state_dict = new_state_dict
+
+        pre_list = list(new2_state_dict.keys())
+        net_list = list(net_dict.keys())
+        print(pre_list)
+        print(net_list)
+        new2_state_dict =  {k: v for k, v in new2_state_dict.items() if k in net_dict}
+        print(list(new2_state_dict.keys()))
+        net_dict.update(new2_state_dict)
+        net.load_state_dict(net_dict)
+        print("Successfully load parameters..")
+
     # --------Optimizer---------
 
     if args.optim == 0:
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=5e-4)
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, momentum=0.9, weight_decay=args.weight_decay)
     elif args.optim == 1:
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=args.weight_decay)
     elif args.optim == 2:
-        optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
+        optimizer = optim.Adagrad(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=args.weight_decay)
     elif args.optim == 3:
-        optimizer = optim.RMSprop(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=5e-4)
+        optimizer = optim.RMSprop(filter(lambda p: p.requires_grad, net.parameters()), lr=args.init_lr, weight_decay=args.weight_decay)
+    elif args.optim == 4:
+        vgg_params = list(net.module.backbone.parameters()) + list(net.module.fclayers.parameters())
+        gating_params = list(net.module.gate_recurrent_b.parameters()) + list(net.module.gate_recurrent_f.parameters())
+        optimizer = optim.Adam([
+            {'params': vgg_params, 'lr': 1e-5, 'weight_decay': args.weight_decay},
+            {'params': gating_params, 'lr': 1e-5, 'weight_decay': args.weight_decay},
+            ], lr=args.init_lr, weight_decay=args.weight_decay)
 
     # --------Import Dataset--------
+    train_loader = None
     if args.dataset == 'cifar10':
         train_loader, test_loader = get_dataloader(
             cifar10_dir=args.data_path,
@@ -242,7 +291,14 @@ def attention_model_training(args):
             imn_dir=args.data_path,
             batch_size=args.batch_size,
             num_workers=8,
-        ) 
+            ) 
+    elif args.dataset == 'noise_imagenet':
+        test_loader = get_noiseImagenetloader(
+            imn_dir=args.data_path,
+            batch_size=args.batch_size,
+            num_workers=8,
+            sigma=args.noise_level,
+            )
 
     if args.print_fe == 1:
         train_it_one(net, criterion, optimizer)
@@ -292,6 +348,29 @@ def attention_model_training(args):
                 start_loc=start,
                 save_gate=args.save_gate,
                 )
+        elif args.task == 'gate_recurrent_v2_1':
+            Trainer.start(
+                model=net,
+                optimizer=optimizer,
+                train_dataloader=train_loader,
+                test_dataloader=test_loader,
+                criterion=gate_v2_criterion,
+                max_epoch=300,
+                acc_lr_sched=adjust_learning_rate_gtv2,
+                init_lr= args.init_lr,
+                lr_decay = args.lr_decay,
+                lr_freq = args.lr_freq,
+                display_freq=args.display_freq,
+                output_dir=args.save_dir+args.expId,
+                save_every=args.save_every,
+                max_keep=20,
+                save_model_data='/data2/simingy/model_data/'+args.expId,
+                add_noise=args.add_noise,
+                test_model=args.test_model,
+                start_loc=start,
+                save_gate=args.save_gate,
+                )
+
         else:
             Trainer.start(
                 model=net,

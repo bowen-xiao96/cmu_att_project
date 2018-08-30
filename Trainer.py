@@ -22,6 +22,7 @@ criterion_ = None
 
 max_epoch_ = None
 lr_sched_ = None
+acc_lr_sched_ = None
 init_lr_ = None
 lr_decay_ = None
 lr_freq_ = None
@@ -111,6 +112,9 @@ def train_one_epoch(epoch):
     for i, (x, y) in enumerate(train_dataloader_):
         # measure data loading time
         data_time.update(time.time() - end)
+
+        if lr_sched_ is None:
+            acc_lr_sched_(optimizer_, epoch, i, loss=losses.avg)
  
         x = A.Variable(x.cuda())
         y = A.Variable(y.cuda())

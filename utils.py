@@ -130,6 +130,53 @@ def get_Imagenetloader(imn_dir, batch_size, num_workers):
     print("Load Data Done!")
     return train_loader, val_loader
 
+def get_noiseImagenetloader(imn_dir, batch_size, num_workers, sigma=None, noise=True):
+    def add_noise_and_to_tensor(img):
+        # assume img is a PIL image
+        img = np.array(img).astype(np.float32)
+        if noise:
+            # img ranges from 0 to 255 (original np.uint8)
+            n = np.random.normal(0.0, sigma, img.shape)
+            img += n
+            img = np.clip(img, 0.0, 255.0)
+
+
+        # need to scale between 0 and 1
+        img /= 255.0
+
+        # convert from HWC to CHW
+        img = np.transpose(img, (2, 0, 1)).copy()
+        return torch.from_numpy(img)
+
+
+    # creating dataset and dataloader
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(mean, std)
+
+    val_transform = transforms.Compose([
+        transforms.Resize(256, interpolation=Image.LANCZOS),
+        transforms.CenterCrop(224),
+        transforms.Lambda(add_noise_and_to_tensor),
+        normalize
+    ])
+
+    val_dataset = ImageFolder(
+        os.path.join(imn_dir, 'val'),
+        transform=val_transform
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+    print("Load Data Done!")
+    return val_loader
+
 def xavier_init(model):
     for m in model.modules():
         if isinstance(m, nn.Conv2d):
@@ -165,6 +212,20 @@ def postprocess_config(cfg):
 def adjust_learning_rate(optimizer, epoch, init_lr=0.01, lr_decay=0.5, lr_freq=30):
     """Sets the learning rate to the initial LR decayed by 2 every 30 epochs"""
     lr = init_lr * (lr_decay ** (epoch // lr_freq))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+def adjust_learning_rate_gtv2(optimizer, epoch, step, init_lr=1e-4, lr_decay=0.1, loss=100):
+    if epoch == 0:
+        if (loss < 1.32 and step > 0) or step > 200:
+            lr = 1e-6
+        else:
+            return
+    elif epoch == 1:
+        lr = 1e-7
+    else:
+        lr = 1e-8
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -296,12 +357,19 @@ def getGate_Recurrent_v2_Setting(i, cfg):
     v = str(i)
     unroll_count = cfg['gate_r_v2'][v]['unroll_count']
     start_layer = cfg['gate_r_v2'][v]['back']
-    gate_filter_size = cfg['gate_r_v2'][v]['gate_filter_size']
+    if isinstance(cfg['gate_r_v2'][v]['gate_filter_size'], int):
+        gate_filter_size = cfg['gate_r_v2'][v]['gate_filter_size']
+    else:
+        gate_filter_size = 0
+    gate_deconv = 0
     gate_dropout = 0
     if 'dropout' in cfg['gate_r_v2'][v]:
         gate_dropout = cfg['gate_r_v2'][v]['dropout']
 
-    return unroll_count, start_layer, gate_filter_size, gate_dropout
+    if 'deconv' in cfg['gate_r_v2'][v]:
+        gate_deconv = cfg['gate_r_v2'][v]['deconv']
+
+    return unroll_count, start_layer, gate_filter_size, gate_dropout, gate_deconv
 
 def get_Intermediate_loss(cfg):
     extra_loss = 0
@@ -430,7 +498,7 @@ def gate_criterion(pred, y):
     return alpha * loss_1 + loss_2
 
 def gate_v2_criterion(pred, y):
-
+    global weights
     unroll_number = len(pred)
     batch_size = pred[0][0]
     loss_list = []
@@ -442,11 +510,11 @@ def gate_v2_criterion(pred, y):
     
     return final_loss
     
-def add_gaussian_noise(image, mean=0.0, stddev=0.5):
+def add_gaussian_noise(image, mean=0.0, stddev=0.4):
  
     img_data = image.data.cpu().numpy()
     noise = np.random.normal(mean, stddev, size=(img_data.shape))
-    mask = np.random.choice([0, 1], size=(img_data.shape[2], img_data.shape[3]), p=[5./6, 1./6])
+    mask = np.random.choice([0, 1], size=(img_data.shape[2], img_data.shape[3]), p=[0, 1])
     mask = np.expand_dims(mask, axis=0)
     mask = np.expand_dims(mask, axis=0)
     mask = np.tile(mask, [noise.shape[0], noise.shape[1], 1, 1])

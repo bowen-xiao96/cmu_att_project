@@ -64,6 +64,78 @@ def show_weights(expId, data_path='/data2/simingy/model'):
         plt.plot(x_axis, y_axis, label=str(i+1)+'epoch')
     plt.legend(loc = 'best')
 
+def show_feature_weights(expId, data_path='/data2/simingy/model'):
+    plt.figure(figsize=(5, 5))
+    fig, ax = plt.subplots()
+    ax.set_color_cycle(['red', 'orange', 'yellow', 'green', 'blue', 'black'])
+    plt.xlabel('number of neuron')
+    plt.ylabel('neuron response')
+    
+    for i in range(5):
+        data_file = os.path.join(data_path, expId, 'low_high_features_' + str(i+1) + '.npz')
+        data_file = np.load(data_file)
+        low_weights = data_file['low_feature_maps']
+        low_weights = np.abs(low_weights)
+        
+        x_axis = np.zeros((10))
+        y_axis = np.zeros((10))
+
+        # For each image
+        for j in range(low_weights.shape[0]):
+            low_max = np.max(low_weights[j])
+            for k in range(10):
+                x_axis[k] += (low_weights[j] > low_max * (9-k) * 0.1).sum()
+                y_axis[k] += low_max * (9-k) * 0.1
+
+        x_axis /= low_weights.shape[0]
+        y_axis /= low_weights.shape[0]
+        
+        x_list = []
+        y_list = []
+        for j in range(10):
+            x_list.append(x_axis[j])
+            y_list.append(y_axis[j])
+
+        plt.plot(x_list, y_list, label=str(i+1)+'epoch')
+    plt.legend(loc = 'best')
+    plt.title('low-level feature vector')
+
+    
+    plt.figure(figsize=(5, 5))
+    fig, ax = plt.subplots()
+    ax.set_color_cycle(['red', 'orange', 'yellow', 'green', 'blue', 'black'])
+    plt.xlabel('number of neuron')
+    plt.ylabel('neuron response')
+    
+    for i in range(5):
+        data_file = os.path.join(data_path, expId, 'low_high_features_' + str(i+1) + '.npz')
+        data_file = np.load(data_file)
+        high_weights = data_file['high_feature_maps']
+        high_weights = np.abs(high_weights)
+        
+        x_axis = np.zeros((10))
+        y_axis = np.zeros((10))
+
+        # For each image
+        for j in range(high_weights.shape[0]):
+            high_max = np.max(high_weights[j])
+            for k in range(10):
+                x_axis[k] += (high_weights[j] > high_max * (9-k) * 0.1).sum()
+                y_axis[k] += high_max * (9-k) * 0.1
+
+        x_axis /= high_weights.shape[0]
+        y_axis /= high_weights.shape[0]
+        
+        x_list = []
+        y_list = []
+        for j in range(10):
+            x_list.append(x_axis[j])
+            y_list.append(y_axis[j])
+
+        plt.plot(x_list, y_list, label=str(i+1)+'epoch')
+    plt.legend(loc = 'best')
+    plt.title('high-level feature vector')
+    
 
 def show_distribution(expId, data_path='/data2/simingy/model'):
     for i in range(6):

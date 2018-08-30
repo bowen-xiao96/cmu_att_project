@@ -72,7 +72,11 @@ def get_parser():
     parser.add_argument('--att_unroll_count', default=1, type=int, action='store',
                         help='how many time do you want to unroll')
 
-
+    # Gate Recurrent Settings
+    parser.add_argument('--gate', default=0, type=int, action='store',
+                        help='which gate version do you want to use')
+    parser.add_argument('--gate_unroll_count', default=1, type=int, action='store',
+                        help='how many time do you want to unroll')
 
     return parser
 
@@ -108,7 +112,14 @@ def get_cifar10_images():
     root_dir = '/data2/simingy/data/cifar-10-batches-py/'
     train_list = [
             ['data_batch_1', 'c99cafc152244af753f735de768cd75f'],
+            ['data_batch_2', 'd4bba439e000b95fd0a9bffe97cbabec'],
+            ['data_batch_3', '54ebc095f3ab1f0389bbae665268c751'],
+            ['data_batch_4', '634d18415352ddfa80567beed471001a'],
+            ['data_batch_5', '482c414d41f54cd18b22e5b47cb7c3cb'],
         ]
+
+    train_data = []
+    train_labels = []
     for fentry in train_list:
         f = fentry[0]
         files = os.path.join(root_dir, f)
@@ -117,17 +128,25 @@ def get_cifar10_images():
             entry = pickle.load(fo)
         else:
             entry = pickle.load(fo, encoding='latin1')
-        train_data = entry['data']
+        train_data.append(entry['data'])
+        if 'labels' in entry:
+            train_labels.append(entry['labels'])
+        else:
+            train_labels.append(entry['fine_labels'])
 
         fo.close()
-
-    train_data = train_data.reshape((10000, 3, 32, 32))
+    
+    train_data = np.concatenate(train_data)
+    train_data = train_data.reshape((50000, 3, 32, 32))
     train_data = train_data.transpose((0, 2, 3, 1))
+    print("label_size:")
+    print(len(train_labels))
     images = []
+    labels = []
     for i in range(60):
         images.append(train_data[i])
     
-    return images
+    return train_data, train_labels
 
 def extract_attention_maps(model, x, size=(32, 32)):
     feature_maps = list()
@@ -164,7 +183,56 @@ def extract_attention_maps(model, x, size=(32, 32)):
 
     score_maps = np.concatenate(score_maps, axis=1)
     return score_maps
-    
+
+def extract_recurrent_gate_v2_maps(model, x, size=(32, 32), unroll_count=1):
+    feature_maps = []
+    score_maps = []
+
+    for i, layer in enumerate(model.backbone):
+        x = layer(x)
+        # after relu layer
+        if i in [15]:
+            low_feature_maps = x.data.cpu().numpy()
+        if i in [22]:
+            high_feature_maps = x.data.cpu().numpy()
+            break
+
+    features = []
+    '''
+    for i, feature_map in enumerate(feature_maps):
+        if unroll_count > 1:
+            recurrent_buf = list()
+            recurrent_buf.append(feature_map)
+
+        for j in range(unroll_count):
+            
+            if unroll_count > 1:
+                feature_map = recurrent_buf[-1]
+
+            for k, layer in enumerate(model.att_recurrent_b[i]):
+                x = layer(x)
+
+            old_shape = x.size()
+
+            score = F.softmax(x.view(old_shape[0], -1), dim=1).view(old_shape)
+
+            x = model.att_recurrent_f[i](torch.cat([score, feature_map], dim=1))
+            if unroll_count > 1:
+                recurrent_buf.append(x)
+
+            # Save score maps
+            # upsample the spatial map
+            score = F.upsample(score, size=size, mode='bilinear')
+            #print(score.shape)
+            score_maps.append(score.data.cpu().numpy())
+
+            for k in range(16, 30):
+                x = model.backbone[k](x)
+        
+    score_maps = np.concatenate(score_maps, axis=1)
+    '''
+    return low_feature_maps, high_feature_maps
+   
 
 def extract_recurrent_attention_v2_maps(model, x, size=(32, 32), unroll_count=1):
     feature_maps = list()
@@ -307,6 +375,12 @@ if __name__ == '__main__':
     network_cfg = postprocess_config(json.load(open(os.path.join('network_configs', args.network_config))))
 
     model_path = args.load_file
+    start  = 0
+    if 'best' in args.load_file:
+        start = 0
+    else:
+        start = (int)((((args.load_file).split('.'))[0].split('/'))[-1]) + 1
+   
     _, _, pretrained_dict = torch.load(model_path)
     print(pretrained_dict.keys())
     if args.dataset == 'cifar10':
@@ -316,7 +390,9 @@ if __name__ == '__main__':
     print(model.state_dict().keys())
     
     load_parallel_flag = load_parallel(pretrained_dict)
-    if load_parallel_flag == 1:
+    net_parallel_flag = load_parallel(model.state_dict())
+
+    if load_parallel_flag != net_parallel_flag:
         from collections import OrderedDict
         new_state_dict = OrderedDict()
         for k, v in pretrained_dict.items():
@@ -332,15 +408,37 @@ if __name__ == '__main__':
     model.cuda()
 
     #print(model)
+    batch_size = 128
+
     if args.dataset == 'imagenet':
         all_images = get_imagenet_images()
     elif args.dataset == 'cifar10':
-        all_images = get_cifar10_images()
+        train_loader, test_loader = get_dataloader(
+            cifar10_dir=args.data_path,
+            batch_size=batch_size,
+            num_workers=4,
+        )
+        #all_images, all_labels = get_cifar10_images()
 
-    batch_size = 4
-    batch_count = int(math.ceil(float(len(all_images)) / batch_size))
-    score_maps = list()
 
+    #batch_count = int(math.ceil(float(len(all_images)) / batch_size))
+    score_maps = []
+    feature_maps = []
+    low_feature_maps = []
+    high_feature_maps = []
+    
+    for i, (x, y) in enumerate(train_loader):
+
+        x = A.Variable(x.cuda())
+        y = A.Variable(y.cuda())
+        if args.task == 'recurrent_gate_v2':
+            low_feature_map, high_feature_map = extract_recurrent_gate_v2_maps(model, x, size=(32, 32), unroll_count=args.gate_unroll_count)
+            low_feature_maps.append(low_feature_map)
+            high_feature_maps.append(high_feature_map)
+
+
+
+    '''
     for i in range(batch_count):
         images = all_images[i * batch_size: (i + 1) * batch_size]
         images = A.Variable(torch.stack([transform(img) for img in images]).cuda())
@@ -358,11 +456,24 @@ if __name__ == '__main__':
                 score_maps.append(extract_attention_maps(model, images, size=(32, 32)))
             elif args.task == 'recurrent_att_v2':
                 score_maps.append(extract_recurrent_attention_v2_maps(model, images, size=(32, 32), unroll_count=args.att_unroll_count))
+            elif args.task == 'recurrent_gate_v2':
+                low_feature_map, high_feature_map = extract_recurrent_gate_v2_maps(model, images, size=(32, 32), unroll_count=args.gate_unroll_count)
+                low_feature_maps.append(low_feature_map)
+                high_feature_maps.append(high_feature_map)'''
 
 
-    score_maps = np.concatenate(score_maps, axis=0)
-    all_images = np.stack([np.array(img) for img in all_images])
-    
-    print("Save it!")
-    os.system('mkdir -p %s' % os.path.join(args.save_dir, args.expId))
-    np.savez(os.path.join(args.save_dir, args.expId, 'imagenet.npz'), images=all_images, score_maps=score_maps)
+
+    if args.task == 'recurrent_gate_v2':
+        low_feature_maps = np.concatenate(low_feature_maps, axis=0)
+        high_feature_maps = np.concatenate(high_feature_maps, axis=0)
+        print(low_feature_maps.shape)
+        print(high_feature_maps.shape)
+        print("Save it!")
+        os.system('mkdir -p %s' % os.path.join(args.save_dir, args.expId))
+        np.savez(os.path.join(args.save_dir, args.expId, 'low_high_features_' + str(start) + '.npz'), low_feature_maps=low_feature_maps, high_feature_maps=high_feature_maps)
+    else:
+        score_maps = np.concatenate(score_maps, axis=0)
+        all_images = np.stack([np.array(img) for img in all_images]) 
+        print("Save it!")
+        os.system('mkdir -p %s' % os.path.join(args.save_dir, args.expId))
+        np.savez(os.path.join(args.save_dir, args.expId, 'imagenet.npz'), images=all_images, score_maps=score_maps)

@@ -203,18 +203,26 @@ class AttentionNetwork(nn.Module):
             self.gate_recurrent_f = nn.ModuleList()
 
             for v in self.gate_r_v2_layers:
-                self.gate_r_unroll_account, start_layer, gate_filter_size, gate_dropout = getGate_Recurrent_v2_Setting(v, cfg)
+                self.gate_r_unroll_account, start_layer, gate_filter_size, gate_dropout, self.gate_deconv = getGate_Recurrent_v2_Setting(v, cfg)
                 self.gate_start_layers.append(start_layer)
 
                 end_feature_dim = self.backbone[v-1].out_channels
                 start_feature_dim = self.backbone[start_layer-1].out_channels
                 
                 padding = int(math.floor(float(gate_filter_size) / 2))
-
-                m = nn.Sequential(
-                        nn.Conv2d(end_feature_dim + start_feature_dim, start_feature_dim, kernel_size=gate_filter_size, padding=padding),
-                        nn.Sigmoid()
-                        )
+                
+                if gate_filter_size != 0:
+                    m = nn.Sequential(
+                            nn.Conv2d(end_feature_dim + start_feature_dim, start_feature_dim, kernel_size=gate_filter_size, padding=padding),
+                            nn.Sigmoid()
+                            )
+                else:
+                    padding = int(math.floor(float(3) / 2))
+                    m = nn.Sequential(
+                           nn.Conv2d(end_feature_dim + start_feature_dim, end_feature_dim, kernel_size=3, padding=padding),
+                           nn.Conv2d(end_feature_dim, start_feature_dim, kernel_size=3, padding=padding),
+                           nn.Sigmoid()
+                           )
                 
                 self.gate_recurrent_b.append(m)
                 if leaky_flag == 0:
@@ -241,6 +249,13 @@ class AttentionNetwork(nn.Module):
                                 nn.LeakyReLU(0.1, inplace=True),
                                 nn.Dropout(gate_dropout)
                                 )
+
+                if self.gate_deconv == 1:
+                    self.gate_deconv_layer = nn.Sequential(
+                                                nn.ConvTranspose2d(end_feature_dim, end_feature_dim, kernel_size=2, stride=2, padding=0),
+                                                nn.ReLU(inplace=True)
+                                                )
+
               
                 #n.append(nn.Conv2d(end_feature_dim, start_feature_dim, kernel_size=1))
                 self.gate_recurrent_f.append(n)
@@ -391,8 +406,12 @@ class AttentionNetwork(nn.Module):
                 recurrent_buf.append(feature_map)
                 for j in range(self.gate_r_unroll_account):
                     prev = recurrent_buf[-1]
-                    
-                    x = F.upsample(x, scale_factor=2, mode='bilinear')
+
+                    if self.gate_deconv == 0:
+                        x = F.upsample(x, scale_factor=2, mode='bilinear')
+                    else:
+                        x = self.gate_deconv_layer(x)
+
 
                     gate = self.gate_recurrent_b[i](torch.cat([x, prev], dim=1))
                     
