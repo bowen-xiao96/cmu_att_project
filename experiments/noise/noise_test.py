@@ -1,7 +1,5 @@
 import os, sys
-import random
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import OrderedDict
 from PIL import Image
 
@@ -24,9 +22,9 @@ from util.metric import accuracy
 def get_dataloader(root_dir, mode, noise, batch_size, num_workers, sigma=None):
     def add_noise_and_to_tensor(img):
         # assume img is a PIL image
+        # img ranges from 0 to 255 (original np.uint8)
         img = np.array(img).astype(np.float32)
         if noise:
-            # img ranges from 0 to 255 (original np.uint8)
             n = np.random.normal(0.0, sigma, img.shape)
             img += n
             img = np.clip(img, 0.0, 255.0)
@@ -93,6 +91,8 @@ if __name__ == '__main__':
     # load model
     if mode == 2:
         # recurrent gating model
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+
         # such hyperparameters are fixed
         connections = (
             (13, 8, 256, 128, 2),
@@ -104,6 +104,8 @@ if __name__ == '__main__':
 
     else:
         # ordinary vgg model
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
         model = vgg16(num_classes=1000, init_weights=False)
         state_dict = torch.load(model_file)
         if mode == 1:

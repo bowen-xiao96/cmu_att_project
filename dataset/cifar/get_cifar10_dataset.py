@@ -7,14 +7,14 @@ from torchvision import transforms
 
 def get_dataloader(cifar10_dir, batch_size, num_workers):
     # creating dataset and dataloader
-    mean = np.array([0.49139968, 0.48215827, 0.44653124])
-    std = np.array([0.24703233, 0.24348505, 0.26158768])
+    mean = np.array([0.4914, 0.4822, 0.4465])
+    std = np.array([0.2470, 0.2435, 0.2616])
     normalize = transforms.Normalize(mean, std)
 
     train_transform = transforms.Compose([
         transforms.RandomHorizontalFlip(),
         # random crop
-        # very essential
+        # which is very essential
         transforms.RandomCrop(32, 4),
         transforms.ToTensor(),
         normalize
