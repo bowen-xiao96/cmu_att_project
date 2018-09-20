@@ -1,7 +1,5 @@
 import os, sys
 import numpy as np
-import torch.backends.cudnn as cudnn
-cudnn.benchmark = True
 
 import torch
 import torch.nn as nn
@@ -10,9 +8,9 @@ import torch.optim as optim
 
 sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
-from util import Trainer
+from util import Trainer_newloss as Trainer
 from util.model_tools import initialize_vgg
-from model.multiple_recurrent_l import *
+from model.multiple_recurrent_newloss import *
 from dataset.imagenet.get_imagenet_dataset import get_dataloader
 
 #
@@ -44,7 +42,7 @@ connections = (
     (20, 15, 512, 256, 2),
     # (27, 22, 512, 512, 2)
 )
-model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000)
+model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, ('final', ))
 initialize_vgg(model)
 
 if weight_file:
@@ -69,47 +67,10 @@ model.cuda()
 #
 train_loader, test_loader = get_dataloader(
     '/data2/simingy/data/Imagenet',
-    44,
+    52,
     8
 )
-
-#
-# prepare loss function
-#
-gamma = 0.5
-weights = list()
-for i in range(unroll_count):
-    if i == 0:
-        weights.append(gamma)
-    else:
-        weights.append(weights[-1] * gamma)
-
-# like (gamma**5, gamma**4, gamma**3, gamma**2, gamma)
-weights = torch.FloatTensor(list(reversed(weights)))
-# normalize to sum=1.0
-weights /= torch.sum(weights)
-print('Loss weights for different time steps:')
-print(weights)
-weights = A.Variable(weights.cuda(), requires_grad=False)
-
-
-def criterion(pred, y):
-    # batch_size * unroll_count * num_class
-    old_size = pred.size()
-    batch_size, time_step = old_size[:2]
-    # flatten into (-1, num_class)
-    new_size = torch.Size([batch_size * time_step] + list(old_size[2:]))
-    intermediate_pred = pred.view(new_size)
-
-    loss_1 = F.cross_entropy(
-        intermediate_pred,
-        y.repeat(time_step, 1).transpose(0, 1).contiguous().view(-1),
-        reduce=False
-    )
-    # average over batches
-    loss = torch.sum(loss_1 * weights.repeat(batch_size)) / batch_size
-    return loss
-
+max_step = len(train_loader)
 
 #
 # prepare optimizer and lr scheduler
@@ -123,15 +84,35 @@ optimizer = optim.Adam([
     {'params': gating_params, 'lr': 1e-5, 'weight_decay': 1e-4},
 ])
 
+
+def call_back(epoch, step, locals_dict, globals_dict):
+    optimizer = globals_dict['optimizer_']
+
+    if epoch == 0:
+        if step <= max_step // 3:
+            return
+        elif step <= 2 * max_step // 3:
+            lr = 3e-6
+        else:
+            lr = 1e-6
+
+    elif epoch == 1 and step <= max_step // 2:
+        lr = 3e-7
+    else:
+        lr = 1e-7
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
 Trainer.start(
     model=model,
     optimizer=optimizer,
     train_dataloader=train_loader,
     test_dataloader=test_loader,
-    criterion=criterion,
     max_epoch=3,
     lr_sched=None,
-    call_back=None,
+    call_back=call_back,
     display_freq=50,
     output_dir=TAG,
     save_every=1,

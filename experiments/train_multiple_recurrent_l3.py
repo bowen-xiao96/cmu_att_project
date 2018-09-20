@@ -1,7 +1,5 @@
 import os, sys
 import numpy as np
-import torch.backends.cudnn as cudnn
-cudnn.benchmark = True
 
 import torch
 import torch.nn as nn
@@ -69,9 +67,10 @@ model.cuda()
 #
 train_loader, test_loader = get_dataloader(
     '/data2/simingy/data/Imagenet',
-    44,
+    40,
     8
 )
+max_step = len(train_loader)
 
 #
 # prepare loss function
@@ -123,6 +122,27 @@ optimizer = optim.Adam([
     {'params': gating_params, 'lr': 1e-5, 'weight_decay': 1e-4},
 ])
 
+
+def call_back(epoch, step, locals_dict, globals_dict):
+    optimizer = globals_dict['optimizer_']
+
+    if epoch == 0:
+        if step <= max_step // 3:
+            return
+        elif step <= 2 * max_step // 3:
+            lr = 3e-6
+        else:
+            lr = 1e-6
+
+    elif epoch == 1 and step <= max_step // 2:
+        lr = 3e-7
+    else:
+        lr = 1e-7
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
 Trainer.start(
     model=model,
     optimizer=optimizer,
@@ -131,7 +151,7 @@ Trainer.start(
     criterion=criterion,
     max_epoch=3,
     lr_sched=None,
-    call_back=None,
+    call_back=call_back,
     display_freq=50,
     output_dir=TAG,
     save_every=1,

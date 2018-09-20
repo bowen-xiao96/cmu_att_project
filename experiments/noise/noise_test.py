@@ -124,19 +124,31 @@ if __name__ == '__main__':
     imagenet_dir = '/data2/simingy/data/Imagenet'
     test_loader = get_dataloader(imagenet_dir, mode, noise, 256, 8, sigma)
 
-    pred = list()
-    gt = list()
+    all_pred = list()
+    all_gt = list()
 
     for x, y in test_loader:
         x = A.Variable(x.cuda(), volatile=True)
         y = A.Variable(y.cuda(), volatile=True)
 
         output = model(x)
-        pred.append(output.data.cpu())
-        gt.append(y.data.cpu())
 
-    pred = torch.cat(pred, dim=0)
-    gt = torch.cat(gt, dim=0)
+        if isinstance(output, tuple):
+            pred, _ = output
+        else:
+            pred = output
 
-    prec1, prec5 = accuracy(pred, gt, topk=(1, 5))
-    print(prec1[0], prec5[0])
+        all_pred.append(pred.data.cpu())
+        all_gt.append(y.data.cpu())
+
+    pred = torch.cat(all_pred, dim=0)
+    gt = torch.cat(all_gt, dim=0)
+
+    if len(pred.size()) == 2:
+        prec1, prec5 = accuracy(pred, gt, topk=(1, 5))
+        print(prec1[0], prec5[0])
+    else:
+        unroll_count = pred.size(1)
+        for i in range(unroll_count):
+            prec1, prec5 = accuracy(pred[:, i, :], gt, topk=(1, 5))
+            print(i, prec1, prec5)

@@ -1,5 +1,4 @@
 import os, sys
-import gzip
 import pickle
 import numpy as np
 
@@ -21,7 +20,7 @@ class CUBDataset(Dataset):
         return len(self.data_list)
 
     def __getitem__(self, item):
-        class_id, f, _ = self.data_list[item]
+        f, class_id, _ = self.data_list[item]
 
         img = Image.open(os.path.join(self.image_path, f)).convert('RGB')
         img = self.transform(img)
@@ -30,11 +29,11 @@ class CUBDataset(Dataset):
 
 
 def get_dataloader(metadata_file, image_path, batch_size, num_workers):
-    with gzip.open(metadata_file, 'rb') as f_in:
+    with open(metadata_file, 'rb') as f_in:
         _, train_list, test_list = pickle.load(f_in)
 
-    mean = np.array([0.4671, 0.4689, 0.4041])
-    std = np.array([0.2399, 0.2362, 0.2630])
+    mean = np.array([0.4703, 0.4717, 0.4085])
+    std = np.array([0.2409, 0.2381, 0.2648])
     normalize = transforms.Normalize(mean, std)
 
     train_transform = transforms.Compose([

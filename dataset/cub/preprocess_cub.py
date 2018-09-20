@@ -1,6 +1,5 @@
 import os, sys
 import numpy as np
-import gzip
 import pickle
 
 from PIL import Image
@@ -16,13 +15,15 @@ def _read_txt(filename):
     return [l.strip() for l in lines if l.strip()]
 
 
-def load_metadata(root_dir, output_file):
+# crop CUB images according to their bounding boxes
+# then dump image metadata to a pickle file
+def preprocess(root_dir, img_output_dir):
     classes = _read_txt(os.path.join(root_dir, 'lists', 'classes.txt'))
-    output = [classes]  # classes, train, test
+    train_list = list()
+    test_list = list()
 
-    for tag in ('train', 'test'):
-        data_list = list()
-        image_list = _read_txt(os.path.join(root_dir, 'lists', tag + '.txt'))
+    for flag in ('train', 'test'):
+        image_list = _read_txt(os.path.join(root_dir, 'lists', flag + '.txt'))
 
         for f in image_list:
             class_tag, _ = f.split('/')
@@ -38,31 +39,26 @@ def load_metadata(root_dir, output_file):
                 mat_file['bbox']['bottom'].item().item(),
             ))
 
-            assert os.path.exists(os.path.join(root_dir, 'images', f))
-            data_list.append((class_id, f, bbox))
+            # check file existence and record it
+            image_filename = os.path.join(root_dir, 'images', f)
+            assert os.path.exists(image_filename)
+            locals()[flag + '_list'].append((f, class_id, bbox))
 
-        output.append(data_list)
+            # crop the image according to the bounding box
+            img = Image.open(image_filename).convert('RGB')
 
-    with gzip.open(output_file, 'wb') as f_out:
-        pickle.dump(tuple(output), f_out, pickle.HIGHEST_PROTOCOL)
+            cropped = img.crop(bbox)
+            output_filename = os.path.join(img_output_dir, f)
+            if not os.path.exists(os.path.dirname(output_filename)):
+                os.makedirs(os.path.dirname(output_filename))
 
+            cropped.save(output_filename)
 
-def crop_images(metadata_file, root_dir, save_to):
-    with gzip.open(metadata_file, 'rb') as f_in:
-        _, train_list, test_list = pickle.load(f_in)
-
-    data = train_list + test_list
-    for class_id, img_filename, bbox in data:
-        img = Image.open(os.path.join(root_dir, 'images', img_filename)).convert('RGB')
-
-        cropped = img.crop(bbox)
-        output_filename = os.path.join(save_to, img_filename)
-        if not os.path.exists(os.path.dirname(output_filename)):
-            os.makedirs(os.path.dirname(output_filename))
-
-        cropped.save(output_filename)
+    print(len(train_list))
+    print(len(test_list))
+    with open('cub_metadata.pkl', 'wb') as f_out:
+        pickle.dump((classes, train_list, test_list), f_out, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
-    load_metadata(ROOT_DIR, 'cub_metadata.pkgz')
-    crop_images('cub_metadata.pkgz', ROOT_DIR, 'cropped')
+    preprocess(ROOT_DIR, 'cub_cropped')

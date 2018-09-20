@@ -1,15 +1,19 @@
+import os, sys
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as A
 
-from gate import *
+sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
+from model.gate import *
 
 network_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
 
 
 class MultipleRecurrentModel(nn.Module):
-    def __init__(self, network_cfg, connections, unroll_count, num_class, last_dim=1, dropout=0.5):
+    def __init__(self, network_cfg, connections, unroll_count, num_class,
+                 gating_module=GatingModule, last_dim=1, dropout=0.5):
         super(MultipleRecurrentModel, self).__init__()
 
         self.unroll_count = unroll_count
@@ -42,7 +46,7 @@ class MultipleRecurrentModel(nn.Module):
 
         for high_layer, low_layer, high_layer_dim, low_layer_dim, scale_factor in connections:
             if scale_factor in (1, 2):
-                gating = GatingModule(low_layer_dim, high_layer_dim, scale_factor, 3, 1, dropout=0.5)
+                gating = gating_module(low_layer_dim, high_layer_dim, scale_factor, 3, 1, dropout=0.5)
             else:
                 raise NotImplementedError
 
