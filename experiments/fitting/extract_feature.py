@@ -9,7 +9,8 @@ import torch.nn.functional as F
 import torch.autograd as A
 
 sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
-from model.multiple_recurrent_l import *
+from model.multiple_recurrent_newloss import *
+from utils.model_tools import idx_dict
 from cnn_pretrained import get_one_network_meta
 
 # read hdf5 input file
@@ -23,8 +24,8 @@ connections = (
     (13, 8, 256, 128, 2),
     (20, 15, 512, 256, 2)
 )
-model = MultipleRecurrentModel(network_cfg, connections, 5, 1000)
-_, _, state_dict = torch.load(r'/data2/bowenx/attention/pay_attention/experiments/multiple_recurrent_l2/best.pkl')
+model = MultipleRecurrentModel(network_cfg, connections, 5, 1000, 'final')
+_, _, state_dict = torch.load(r'/data2/bowenx/attention/pay_attention/experiments/multiple_recurrent_newloss/best.pkl')
 state_dict = OrderedDict([(k.replace('module.', ''), v) for k, v in state_dict.items()])
 model.load_state_dict(state_dict)
 model.eval()
@@ -33,26 +34,6 @@ del state_dict
 
 # load network metadata
 _, slice_dict, layers, _ = get_one_network_meta('vgg16', 24)
-idx_dict = {
-    1: 'conv1_1',
-    3: 'conv1_2',
-    4: 'pool1',
-    6: 'conv2_1',
-    8: 'conv2_2',
-    9: 'pool2',
-    11: 'conv3_1',
-    13: 'conv3_2',
-    15: 'conv3_3',
-    16: 'pool3',
-    18: 'conv4_1',
-    20: 'conv4_2',
-    22: 'conv4_3',
-    23: 'pool4',
-    25: 'conv5_1',
-    27: 'conv5_2',
-    29: 'conv5_3',
-    30: 'pool5',
-}
 
 # unroll_count * layer_count
 features = [[list() for j in range(len(idx_dict) + 2)] for i in range(model.unroll_count)]
@@ -109,11 +90,6 @@ def extract_feat(model, x):
             buf[model.min_end_layer].append(x)
             pos += 1
 
-            if model.min_end_layer in idx_dict:
-                offset = layers.index(idx_dict[model.min_end_layer])
-                slice_r, slice_c = slice_dict[idx_dict[model.min_end_layer]]
-                features[i][offset].append(x[:, :, slice_r, slice_c].data.cpu().numpy())
-
             for j in range(model.min_end_layer, model.layer_count):
                 # forward computation of this layer
                 if j in model.end_layers and j != model.min_end_layer:
@@ -123,7 +99,7 @@ def extract_feat(model, x):
 
                 x = model.backbone[j](x)
 
-                if j in idx_dict and j != model.min_end_layer:
+                if j in idx_dict:
                     offset = layers.index(idx_dict[j])
                     slice_r, slice_c = slice_dict[idx_dict[j]]
                     features[i][offset].append(x[:, :, slice_r, slice_c].data.cpu().numpy())
@@ -153,13 +129,14 @@ for i in range(img_count):
     extract_feat(model, img)
 
 # save all features in hdf5 file
-with h5py.File('features.h5', 'w') as f_out:
+with h5py.File('features_newloss.h5', 'w') as f_out:
     for i in range(model.unroll_count):
         for j in range(len(idx_dict) + 2):
             dataset_name = 'crcns_pvc-8_large/vgg-GR%d/half/%d' % (i + 1, j)
 
             if i > 0 and j < layers.index(idx_dict[model.min_end_layer]):
                 # the layers before recurrent are always the same
+                assert len(features[i][j]) == 0
                 f_out.create_dataset(dataset_name, data=np.concatenate(features[0][j], axis=0))
             else:
                 assert len(features[i][j]) == img_count

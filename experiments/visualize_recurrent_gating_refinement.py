@@ -92,7 +92,7 @@ if __name__ == '__main__':
         from model.recurrent_gating_refinement import *
         from torchvision.datasets import CIFAR10
         from torchvision import transforms
-        from util.visualize_scoremap import draw_image
+        from utils.visualize_scoremap import draw_image
 
         model = RecurrentGatingRefinementModel(network_cfg, 5, True, 10)
 

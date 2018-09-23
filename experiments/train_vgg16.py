@@ -11,8 +11,8 @@ import torch.optim as optim
 
 sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
-from util import Trainer
-from util.model_tools import initialize_vgg
+from utils import Trainer
+from utils.model_tools import initialize_vgg
 from torchvision.models import vgg16
 from dataset.cifar.get_cifar10_dataset import get_dataloader
 

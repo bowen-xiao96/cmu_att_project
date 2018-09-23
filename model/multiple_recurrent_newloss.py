@@ -21,7 +21,7 @@ class MultipleRecurrentModel(nn.Module):
         # scale_factor: 2**n
 
         # loss_scheme: (mode, params...)
-        # mode can be 'each', 'final' and 'refine'
+        # mode can be 'each', 'final', 'refine'
         # if mode is 'each' or 'refine', we need a param controlling the weight of losses
 
         # ** data flows from high_layer to low_layer (recurrent) **

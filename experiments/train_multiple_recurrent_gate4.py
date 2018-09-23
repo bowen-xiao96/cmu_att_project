@@ -1,7 +1,5 @@
 import os, sys
 import numpy as np
-import torch.backends.cudnn as cudnn
-cudnn.benchmark = True
 
 import torch
 import torch.nn as nn
@@ -12,7 +10,8 @@ sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
 from utils import Trainer
 from utils.model_tools import initialize_vgg
-from model.multiple_recurrent_l import *
+from model.multiple_recurrent_newgate import *
+from model.gate import *
 from dataset.imagenet.get_imagenet_dataset import get_dataloader
 
 #
@@ -44,25 +43,24 @@ connections = (
     (20, 15, 512, 256, 2),
     # (27, 22, 512, 512, 2)
 )
-model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000)
+model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule4)
 initialize_vgg(model)
-
-if GPU_ID == -1:
-    model = nn.DataParallel(model)
 
 if weight_file:
     print('Loading weight file: ' + weight_file)
-    loaded = torch.load(weight_file)
-    if isinstance(loaded, tuple):
-        loaded = loaded[-1]
-    state_dict = {k.replace('features', 'backbone'): v for k, v in loaded.items()}
+    state_dict = torch.load(weight_file)
+    if isinstance(state_dict, tuple):
+        state_dict = state_dict[-1]
+    state_dict = {k.replace('features', 'backbone'): v for k, v in state_dict.items()}
 
     print(state_dict.keys())
     print(model.state_dict().keys())
 
     model.load_state_dict(state_dict, strict=False)
-    del loaded, state_dict
+    del state_dict
 
+if GPU_ID == -1:
+    model = nn.DataParallel(model)
 model.cuda()
 
 #
@@ -70,9 +68,10 @@ model.cuda()
 #
 train_loader, test_loader = get_dataloader(
     '/data2/simingy/data/Imagenet',
-    48,
+    40,
     8
 )
+max_step = len(train_loader)
 
 #
 # prepare loss function
@@ -115,17 +114,32 @@ def criterion(pred, y):
 #
 # prepare optimizer and lr scheduler
 #
-init_lr = 0.00001
 
-optimizer = optim.Adam(
-    model.parameters(),
-    lr=init_lr,
-    weight_decay=1e-4
-)
+vgg_params = list(model.module.backbone.parameters()) + list(model.module.classifier.parameters())
+gating_params = list(model.module.gating.parameters())
+
+optimizer = optim.Adam([
+    {'params': vgg_params, 'lr': 1e-6, 'weight_decay': 1e-4},
+    {'params': gating_params, 'lr': 1e-5, 'weight_decay': 1e-4},
+])
 
 
-def lr_sched(optimizer, epoch):
-    lr = init_lr * (0.5 ** (epoch // 30))
+def call_back(epoch, step, locals_dict, globals_dict):
+    optimizer = globals_dict['optimizer_']
+
+    if epoch == 0:
+        if step <= max_step // 3:
+            return
+        elif step <= 2 * max_step // 3:
+            lr = 3e-6
+        else:
+            lr = 1e-6
+
+    elif epoch == 1 and step <= max_step // 2:
+        lr = 3e-7
+    else:
+        lr = 1e-7
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -136,8 +150,9 @@ Trainer.start(
     train_dataloader=train_loader,
     test_dataloader=test_loader,
     criterion=criterion,
-    max_epoch=180,
-    lr_sched=lr_sched,
+    max_epoch=3,
+    lr_sched=None,
+    call_back=call_back,
     display_freq=50,
     output_dir=TAG,
     save_every=1,

@@ -16,7 +16,7 @@ sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
 from torchvision.models import vgg16
 from model.multiple_recurrent_l import *
-from util.metric import accuracy
+from utils.metric import accuracy
 
 
 def get_dataloader(root_dir, mode, noise, batch_size, num_workers, sigma=None):
@@ -71,7 +71,14 @@ def get_dataloader(root_dir, mode, noise, batch_size, num_workers, sigma=None):
 
 if __name__ == '__main__':
     # fix the seed of the random generator
-    np.random.seed(0)
+    import torch.backends.cudnn as cudnn
+    cudnn.benchmark = False
+    cudnn.deterministic = True
+
+    np.random.seed(1)
+    torch.manual_seed(1)
+    torch.cuda.manual_seed(1)
+    torch.cuda.manual_seed_all(1)
 
     assert len(sys.argv) > 3
     # mode=0: original vgg16 pytorch model

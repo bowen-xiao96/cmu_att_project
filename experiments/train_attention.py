@@ -10,11 +10,11 @@ import torch.optim as optim
 
 sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
-from util import Trainer
-from util.model_tools import initialize_vgg
+from utils import Trainer
+from utils.model_tools import initialize_vgg
 from model.pay_attention import *
 from dataset.cifar.get_cifar10_dataset import get_dataloader
-from util.Padam import Padam
+from utils.Padam import Padam
 
 assert len(sys.argv) > 2
 GPU_ID = int(sys.argv[1])
