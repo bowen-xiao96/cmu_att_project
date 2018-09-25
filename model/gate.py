@@ -219,7 +219,7 @@ class GatingModule4(nn.Module):
 
         padding_h = horizontal_kernel // 2
         self.horizontal = nn.Sequential(
-            nn.Conv2d(channel_low + channel_high, channel_low, kernel_size=horizontal_kernel, padding=padding_h),
+            nn.Conv2d(channel_low + channel_low, channel_low, kernel_size=horizontal_kernel, padding=padding_h),
             nn.ReLU(inplace=True)
         )
 
