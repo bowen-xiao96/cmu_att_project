@@ -10,108 +10,68 @@ import torch.autograd as A
 
 from torchvision.models import vgg16
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from attack import FGSM_attack
 
-assert len(sys.argv) > 5
-GPU_ID = int(sys.argv[1])
-os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
-mode = int(sys.argv[2])
-weight_file = sys.argv[3]
-num_iter = int(sys.argv[4])
-eps = float(sys.argv[5])
-
-from attack import *
 sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 from dataset.imagenet.get_imagenet_dataset import get_dataloader
-from model.multiple_recurrent_l import *
-from util.metric import accuracy
+from model.get_model import get_model
+from utils.metric import accuracy
 
-# the average drop of the two models with the adversarial noise
-if mode == 0:
-    model = vgg16(num_classes=1000, init_weights=False)
-    model.load_state_dict(torch.load(weight_file))
+if __name__ == '__main__':
+    assert len(sys.argv) > 4
+    GPU_ID = int(sys.argv[1])
+    model_name = sys.argv[2]
+    weight_file = sys.argv[3]
+    eps = float(sys.argv[4])
 
-    batch_size = 128
+    if GPU_ID == -1:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+    else:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
 
-else:
-    connections = (
-        (13, 8, 256, 128, 2),
-        (20, 15, 512, 256, 2)
-    )
-    model = MultipleRecurrentModel(network_cfg, connections, 5, 1000)
-    _, _, state_dict = torch.load(weight_file)
-    state_dict = OrderedDict([(k.replace('module.', ''), v) for k, v in state_dict.items()])
+    # prapare model
+    model = get_model(model_name)
+    new_loss = model_name == 'multiple_recurrent_newloss'
+    if model_name != 'vgg':
+        # recurrent model, need multiple GPUs
+        model = nn.DataParallel(model)
+
+    # load weights
+    state_dict = torch.load(weight_file)
+    if isinstance(state_dict, tuple):
+        state_dict = state_dict[-1]
+
     model.load_state_dict(state_dict)
+    model.eval()
+    model = model.cuda()
     del state_dict
 
-    batch_size = 16
+    imagenet_dir = '/data2/simingy/data/Imagenet'
+    batch_size = 128 if model_name == 'vgg' else 16
+    test_loader = get_dataloader(imagenet_dir, batch_size, 8)
 
-model = model.cuda()
-model.eval()
-for param in model.parameters():
-    param.requires_grad = False
+    pred = list()
+    gt = list()
 
-# set up dataset
-_, test_loader = get_dataloader('/data2/simingy/data/Imagenet', batch_size, 8)
+    for x, y in test_loader:
+        scores = FGSM_attack(model, x, y, eps)
+        pred.append(scores)
+        gt.append(y)
 
+    # calculate accuracy drop and fooling rate
+    pred = torch.cat(pred, dim=0)
+    gt = torch.cat(gt, dim=0)
 
-def convert_to_pil(array):
-    array = array * std + mean
-    array = (array * 255.0).astype(np.uint8)
-    array = np.transpose(np.squeeze(array), (1, 2, 0))
+    top_1_original, top_5_original = accuracy(pred[:, 0, :], gt)
+    top_1_fool, top_5_fool = accuracy(pred[:, 1, :], gt)
 
-    return Image.fromarray(array, mode='RGB')
+    pred_original = A.Variable(pred[:, 0, :].cuda())
+    pred_fool = A.Variable(pred[:, 1, :].cuda())
+    pred_original = F.softmax(pred_original, dim=-1)
+    pred_fool = F.softmax(pred_fool, dim=-1)
+    ave_drop = torch.mean(
+        torch.index_select(pred_original - pred_fool, -1, gt)
+    )
+    ave_drop = ave_drop.data.cpu()[0]
 
-
-original_score = list()
-noise_score = list()
-labels = list()
-visualize = False
-
-for i, (x, y) in enumerate(test_loader):
-    original_img, noise, img_with_noise, score = FGSM_attack(model, x, y, num_iter, eps)
-
-    original_score.append(score[0])
-    noise_score.append(score[-1])
-    labels.append(y.numpy())
-
-    if visualize and i == 0:
-        # draw visualization
-        num_to_draw = min(10, batch_size)
-
-        for j in range(num_to_draw):
-            plt.clf()
-
-            for k in range(num_iter):
-                if k == 0:
-                    old = original_img[j]
-                else:
-                    old = img_with_noise[k - 1][j]
-
-                plt.subplot(num_iter, 3, k * 3 + 1)
-                plt.axis('off')
-                plt.imshow(convert_to_pil(old))
-
-                n = noise[k][j]
-                plt.subplot(num_iter, 3, k * 3 + 2)
-                plt.axis('off')
-                plt.imshow(convert_to_pil(n))
-
-                new = img_with_noise[k][j]
-                plt.subplot(num_iter, 3, k * 3 + 3)
-                plt.axis('off')
-                plt.imshow(convert_to_pil(new))
-
-            plt.savefig('adversarial_%d' % j, dpi=1000)
-
-
-# calculate accuracy
-labels = torch.from_numpy(np.concatenate(labels, axis=0))
-original_score = torch.from_numpy(np.concatenate(original_score, axis=0))
-original_top_1, original_top_5 = accuracy(original_score, labels, topk=(1, 5))
-
-noise_score = torch.from_numpy(np.concatenate(noise_score, axis=0))
-noise_top_1, noise_top_5 = accuracy(noise_score, labels, topk=(1, 5))
-print(original_top_1[0], original_top_5[0], noise_top_1[0], noise_top_5[0])
+    print(top_1_original, top_5_original, top_1_fool, top_5_fool, ave_drop)

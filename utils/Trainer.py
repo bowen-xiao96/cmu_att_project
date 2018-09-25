@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.autograd as A
 
-from util.metric import *
+from utils.metric import *
 
 # ========== state data ==========
 model_ = None
@@ -15,7 +15,9 @@ optimizer_ = None
 train_dataloader_ = None
 test_dataloader_ = None
 criterion_ = None
+new_loss_ = None
 
+start_epoch_ = None
 max_epoch_ = None
 lr_sched_ = None
 call_back_ = None
@@ -42,11 +44,34 @@ def start(**kwargs):
         k_ = k + '_'
         if k_ in globals():
             globals()[k_] = v
+        else:
+            print('WARNING: unsupported Trainer parameter: ' + k)
 
-    globals()['train_loss_'] = list()
-    globals()['train_top1_accu_'] = list()
-    globals()['test_loss_'] = list()
-    globals()['test_top1_accu_'] = list()
+    # parse model loss function
+    model = globals()['model_']
+    if hasattr(model, 'module') and hasattr(model.module, 'loss_type'):
+        globals()['new_loss_'] = True
+    else:
+        globals()['new_loss_'] = False
+
+    # parse starting epoch number
+    if globals()['start_epoch_'] is None:
+        globals()['start_epoch_'] = 0
+
+    if globals()['start_epoch_'] > 0:
+        # load existing training log file
+        log_file = np.load('training_log.npz')
+        globals()['train_loss_'] = log_file['train_loss'].tolist()
+        globals()['train_top1_accu_'] = log_file['train_top1_accu'].tolist()
+        globals()['test_loss_'] = log_file['test_loss'].tolist()
+        globals()['test_top1_accu_'] = log_file['test_top1_accu'].tolist()
+
+    else:
+        # start from scratch
+        globals()['train_loss_'] = list()
+        globals()['train_top1_accu_'] = list()
+        globals()['test_loss_'] = list()
+        globals()['test_top1_accu_'] = list()
 
     print('* Start training... *')
     main_loop()
@@ -72,20 +97,21 @@ def train_one_epoch(epoch):
 
         x = A.Variable(x.cuda())
         y = A.Variable(y.cuda())
-
-        # compute output
-        pred = model_(x)
-        loss = criterion_(pred, y)
-
-        # measure accuracy and record loss
         batch_size = x.size(0)
 
-        if isinstance(pred, tuple):
-            pred = pred[-1]
+        # compute output
+        if new_loss_:
+            pred, loss = model_(x, y)
+            loss = torch.mean(loss)
+        else:
+            pred = model_(x)
+            loss = criterion_(pred, y)
 
+        # measure accuracy and record loss
         train_loss_.append(loss.data[0])
         losses.update(loss.data[0], batch_size)
 
+        # if final prediction has multiple time steps, `accuracy` function will take care
         prec1, prec5 = accuracy(pred.data, y.data, topk=(1, 5))
         train_top1_accu_.append(prec1[0])
         top1.update(prec1[0], batch_size)
@@ -187,7 +213,7 @@ def main_loop():
     best_accu = -1.0
     saved_models = list()
 
-    for i in range(max_epoch_):
+    for i in range(start_epoch_, max_epoch_):
         if lr_sched_:
             lr_sched_(optimizer_, i)
 

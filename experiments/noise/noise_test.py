@@ -1,161 +1,78 @@
-import os, sys
+import sys
 import numpy as np
 from collections import OrderedDict
-from PIL import Image
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.autograd as A
-
-from torch.utils.data import DataLoader
-from torchvision.datasets import ImageFolder
-from torchvision import transforms
+from get_noise import get_dataloader
 
 sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
-from torchvision.models import vgg16
+from model.get_model import get_model
 from model.multiple_recurrent_l import *
 from utils.metric import accuracy
 
-
-def get_dataloader(root_dir, mode, noise, batch_size, num_workers, sigma=None):
-    def add_noise_and_to_tensor(img):
-        # assume img is a PIL image
-        # img ranges from 0 to 255 (original np.uint8)
-        img = np.array(img).astype(np.float32)
-        if noise:
-            n = np.random.normal(0.0, sigma, img.shape)
-            img += n
-            img = np.clip(img, 0.0, 255.0)
-
-        if mode == 1:
-            # need to swap from RGB to BGR
-            img = img[..., ::-1]
-        else:
-            # need to scale between 0 and 1
-            img /= 255.0
-
-        # convert from HWC to CHW
-        img = np.transpose(img, (2, 0, 1)).copy()
-        return torch.from_numpy(img)
-
-    if mode == 1:
-        mean = np.array([103.939, 116.779, 123.68])
-        std = np.array([1.0, 1.0, 1.0])
-    else:
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-
-    normalize = transforms.Normalize(mean, std)
-    transform = transforms.Compose([
-        transforms.Resize(256, interpolation=Image.LANCZOS),
-        transforms.CenterCrop(224),
-        transforms.Lambda(add_noise_and_to_tensor),
-        normalize
-    ])
-
-    # create dataset and dataloader
-    dataset = ImageFolder(os.path.join(root_dir, 'val'), transform=transform)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=False
-    )
-
-    return dataloader
-
-
 if __name__ == '__main__':
-    # fix the seed of the random generator
-    import torch.backends.cudnn as cudnn
-    cudnn.benchmark = False
-    cudnn.deterministic = True
+    # fix the seed of the RNG
+    np.random.seed(0)
 
-    np.random.seed(1)
-    torch.manual_seed(1)
-    torch.cuda.manual_seed(1)
-    torch.cuda.manual_seed_all(1)
+    assert len(sys.argv) > 4
+    GPU_ID = int(sys.argv[1])
+    model_name = sys.argv[2]
+    weight_file = sys.argv[3]
+    noise_sigma = float(sys.argv[4])
 
-    assert len(sys.argv) > 3
-    # mode=0: original vgg16 pytorch model
-    # mode=1: original vgg16 caffe model
-    # mode=2: recurrent gating model
-
-    # noise=0: no noise, noise=1: add noise
-    # if noise=1, we need an additional sigma parameter
-    model_file = sys.argv[1]
-    mode = int(sys.argv[2])
-    noise = int(sys.argv[3])
-    if noise == 1:
-        sigma = float(sys.argv[4])
-    else:
-        sigma = None
-
-    # load model
-    if mode == 2:
-        # recurrent gating model
+    if GPU_ID == -1:
         os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-
-        # such hyperparameters are fixed
-        connections = (
-            (13, 8, 256, 128, 2),
-            (20, 15, 512, 256, 2)
-        )
-        model = MultipleRecurrentModel(network_cfg, connections, 5, 1000)
-        model = nn.DataParallel(model)
-        _, _, state_dict = torch.load(model_file)
-
     else:
-        # ordinary vgg model
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
 
-        model = vgg16(num_classes=1000, init_weights=False)
-        state_dict = torch.load(model_file)
-        if mode == 1:
-            # the caffe model
-            m = {'classifier.1.weight': 'classifier.0.weight', 'classifier.1.bias': 'classifier.0.bias',
-                 'classifier.4.weight': 'classifier.3.weight', 'classifier.4.bias': 'classifier.3.bias'}
-            state_dict = OrderedDict([(m[k] if k in m else k, v) for k, v in state_dict.items()])
+    # prapare model
+    model = get_model(model_name)
+    new_loss = model_name == 'multiple_recurrent_newloss'
+    if model_name != 'vgg' and model_name != 'vgg_caffe':
+        # recurrent model, need multiple GPUs
+        model = nn.DataParallel(model)
 
-    # print(state_dict.keys())
+    # load weights
+    state_dict = torch.load(weight_file)
+    if isinstance(state_dict, tuple):
+        state_dict = state_dict[-1]
+
+    if model_name == 'vgg_caffe':
+        m = {'classifier.1.weight': 'classifier.0.weight', 'classifier.1.bias': 'classifier.0.bias',
+             'classifier.4.weight': 'classifier.3.weight', 'classifier.4.bias': 'classifier.3.bias'}
+        state_dict = OrderedDict([(m[k] if k in m else k, v) for k, v in state_dict.items()])
+
     model.load_state_dict(state_dict)
     model.eval()
-    model.cuda()
+    model = model.cuda()
     del state_dict
 
-    # load dataset
+    # load data and test
     imagenet_dir = '/data2/simingy/data/Imagenet'
-    test_loader = get_dataloader(imagenet_dir, mode, noise, 256, 8, sigma)
+    mode = 'caffe' if model_name == 'vgg_caffe' else 'pytorch'
+    test_loader = get_dataloader(imagenet_dir, mode, 256, 8, noise_sigma)
 
-    all_pred = list()
-    all_gt = list()
+    pred = list()
+    gt = list()
 
     for x, y in test_loader:
         x = A.Variable(x.cuda(), volatile=True)
         y = A.Variable(y.cuda(), volatile=True)
 
-        output = model(x)
-
-        if isinstance(output, tuple):
-            pred, _ = output
+        if new_loss:
+            output_ = model(x, y)
         else:
-            pred = output
+            output_ = model(x)
 
-        all_pred.append(pred.data.cpu())
-        all_gt.append(y.data.cpu())
+        if isinstance(output_, tuple):
+            output, _ = output_
+        else:
+            output = output_
 
-    pred = torch.cat(all_pred, dim=0)
-    gt = torch.cat(all_gt, dim=0)
+        pred.append(output.data.cpu())
+        gt.append(y.data.cpu())
 
-    if len(pred.size()) == 2:
-        prec1, prec5 = accuracy(pred, gt, topk=(1, 5))
-        print(prec1[0], prec5[0])
-    else:
-        unroll_count = pred.size(1)
-        for i in range(unroll_count):
-            prec1, prec5 = accuracy(pred[:, i, :], gt, topk=(1, 5))
-            print(i, prec1, prec5)
+    pred = torch.cat(pred, dim=0)
+    gt = torch.cat(gt, dim=0)
+
+    prec1, prec5 = accuracy(pred, gt, topk=(1, 5))
+    print(prec1[0], prec5[0])

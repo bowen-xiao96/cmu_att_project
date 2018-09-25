@@ -15,7 +15,7 @@ sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
 
 from torchvision.models import vgg16
 from model.multiple_recurrent_l import *
-from util.metric import accuracy
+from utils.metric import accuracy
 
 CLASSES = ('aeroplane', 'bicycle', 'bus', 'car', 'motorbike', 'train')
 LEVEL = ('ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE')

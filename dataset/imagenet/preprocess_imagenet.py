@@ -1,12 +1,16 @@
+# read bounding box annotation for each image
+# and dump them in a pickle file
+
+# also provide tool to crop image according to the bbox
+
 import os, sys
-import gzip
 import pickle
 import xml.etree.ElementTree as ET
 import numpy as np
 
 from PIL import Image
 
-IMAGE_SIZE = 224
+image_size = 224
 
 
 def load_imagenet_notation(filename, label_dict):
@@ -30,44 +34,6 @@ def load_imagenet_notation(filename, label_dict):
         bboxes.append(np.array([xmin, ymin, xmax, ymax, cat], dtype=np.int64))
 
     return np.stack(bboxes)
-
-
-def crop_image(anno_path, image_path, save_to, label_dict, class_id, size_thresh=None, ratio_thresh=None):
-    # crop images according to bounding boxes
-    # applies to a whole class
-
-    for f in os.listdir(os.path.join(anno_path, class_id)):
-        bboxes = load_imagenet_notation(os.path.join(anno_path, class_id, f), label_dict)
-
-        # throw away images with more than one bounding boxes
-        if bboxes.shape[0] > 1:
-            continue
-
-        xmin, ymin, xmax, ymax, _ = bboxes[0]
-        w = xmax - xmin
-        h = ymax - ymin
-
-        # throw away images too small
-        if size_thresh:
-            if min(w, h) < size_thresh:
-                continue
-
-        # throw away images whose aspect ratio too large
-        if ratio_thresh:
-            ratio = float(min(w, h)) / max(w, h)  # <= 1
-            if ratio < ratio_thresh:
-                continue
-
-        # crop and resize image
-        img = Image.open(os.path.join(image_path, class_id, os.path.splitext(f)[0] + '.JPEG')).convert('RGB')
-        img = img.crop((xmin, ymin, xmax, ymax))
-        img = img.resize((IMAGE_SIZE, IMAGE_SIZE), resample=Image.LANCZOS)
-
-        output_path = os.path.join(save_to, class_id)
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-
-        img.save(os.path.join(output_path, os.path.splitext(f)[0] + '.JPEG'))
 
 
 def dump_dataset(anno_path, image_path, label_file, val_set_label_file):
@@ -117,8 +83,8 @@ def dump_dataset(anno_path, image_path, label_file, val_set_label_file):
         # cat start from 1
         val_data.append((img_name, bboxes, cat - 1))
 
-    with gzip.open('imagenet_metadata.pkgz', 'wb') as f_out:
-        pickle.dump((labels, label_dict, train_data, val_data), f_out, pickle.HIGHEST_PROTOCOL)
+    with open('imagenet_metadata.pkl', 'wb') as f_out:
+        pickle.dump((labels, train_data, val_data), f_out, pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
