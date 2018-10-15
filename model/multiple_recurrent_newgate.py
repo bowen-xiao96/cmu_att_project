@@ -13,7 +13,7 @@ network_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M
 
 class MultipleRecurrentModel(nn.Module):
     def __init__(self, network_cfg, connections, unroll_count, num_class,
-                 gating_module=GatingModule, last_dim=7, dropout=0.5):
+                 gating_module=GatingModule, last_dim=7, dropout=0.5, recurrent_count=1, rgc=0):
         super(MultipleRecurrentModel, self).__init__()
 
         # connections: (high_layer, low_layer, high_layer_dim, low_layer_dim, scale_factor)
@@ -24,6 +24,8 @@ class MultipleRecurrentModel(nn.Module):
         # ** currently, there should not be two connections pointing to a same low_layer **
 
         self.unroll_count = unroll_count
+        self.memory = list()
+        self.recurrent_count = recurrent_count
 
         # backbone network
         self.backbone = nn.ModuleList()
@@ -66,20 +68,25 @@ class MultipleRecurrentModel(nn.Module):
 
             if scale_factor == 1:
                 gating = gating_module(low_layer_dim, high_layer_dim, (3, 1, 1, 0), 1, 3, dropout=0.5)
-            elif scale_factor == 2:
+            elif scale_factor == 2 and rgc == 0:
                 gating = gating_module(low_layer_dim, high_layer_dim, (3, 2, 1, 1), 1, 3, dropout=0.5)
+            elif scale_factor == 2 and rgc == 1:
+                gating = gating_module(low_layer_dim, high_layer_dim, (3, 2, 1, 1))
             else:
                 # TODO: long connection across two blocks
                 raise NotImplementedError
 
             self.gating.append(gating)
             self.point_to[high_layer].append(low_layer)
+            self.memory.append(low_layer)
 
     def forward(self, x):
         # each unrolling step, the model makes prediction at the final classifier
 
         # the input to each layer (not output)
         buf = [list() for _ in self.backbone]
+        memory_buf = [list() for _ in range(self.recurrent_cnt)]
+        memory_cnt = 0
 
         # the intermediate predictions of the network
         # the output should be a batch_size * unroll_count * num_class Tensor
@@ -89,9 +96,12 @@ class MultipleRecurrentModel(nn.Module):
         for i in range(self.min_end_layer):
             # do not actually include the starting layer
             x = self.backbone[i](x)
+            if i in self.memory:
+                memory_buf[memory_cnt].append(x)
+                memory_cnt += 1
 
         buf[self.min_end_layer].append(x)
-
+       
         # do recurrent stuff
         for i in range(self.unroll_count):
             if i == 0:
@@ -103,6 +113,11 @@ class MultipleRecurrentModel(nn.Module):
                     # put it into the buffer if there is feedback connection
                     for point_to in self.point_to[j]:
                         buf[point_to].append(x)
+
+                    if j in self.memory:
+                        memory_buf[memory_cnt].append(x)
+                        memory_cnt += 1
+
 
                 # make final predictions
                 x = x.view(x.size(0), -1)
@@ -117,7 +132,12 @@ class MultipleRecurrentModel(nn.Module):
                 pos = 0
 
                 low, high = buf[self.min_end_layer][-2:]
-                x = self.gating[pos](low, high)
+                low_memory = memory[memory_cnt][-1]
+                x, low_memory_update = self.gating[pos](low, high, low_memory)
+
+                memory[memory_cnt].append(low_memory_update)
+                memory_cnt += 1
+
                 buf[self.min_end_layer].append(x)
                 pos += 1
 
@@ -125,7 +145,10 @@ class MultipleRecurrentModel(nn.Module):
                     # forward computation of this layer
                     if j in self.end_layers and j != self.min_end_layer:
                         low, high = x, buf[j][-1]
-                        x = self.gating[pos](low, high)
+                        low_memory = memory[memory_cnt][-1]
+                        x, low_memory_update = self.gating[pos](low, high, low_memory)
+                        memory[memory_cnt].append(low_memory_update)
+                        memory_cnt += 1
                         pos += 1
 
                     x = self.backbone[j](x)

@@ -247,3 +247,63 @@ class GatingModule4(nn.Module):
         gated_high = self.gating_horizontal(horizontal) * self.dropout_horizontal(upsampled_high)
         outout = gated_high + gated_horizontal + low
         return outout
+
+# gating scheme 5
+# baseline concat
+class GatingModule5(nn.Module):
+    def __init__(self, channel_low, channel_high, upsample, hidden_gate_kernel=1, hidden_gs_kernel=1, memory_gate_kernel=1, memory_gs_kernel=1, dropout=0.5):
+        super(GatingModule2, self).__init__()
+
+        if isinstance(upsample, int):
+            self.upsample = nn.Sequential(
+                nn.Upsample(scale_factor=upsample, mode='bilinear'),
+                nn.Conv2d(channel_high, channel_high, kernel_size=3),
+                nn.ReLU(inplace=True)
+            )
+
+        else:
+            ks, s, p, op = upsample
+
+            self.upsample = nn.Sequential(
+                nn.ConvTranspose2d(channel_high, channel_high, kernel_size=ks, stride=s, padding=p, output_padding=op),
+                nn.ReLU(inplace=True)
+            )
+
+        padding_h = hidden_gate_kernel // 2
+        self.hidden_gate = nn.Sequential(
+            nn.Conv2d(channel_low, channel_low, kernel_size=hidden_gate_kernel, padding=padding_h),
+            nn.Sigmoid()
+        )
+
+        padding_h_gs = hidden_gs_kernel // 2
+        self.hidden_gs = nn.Sequential(
+            nn.Conv2d(channel_low, channel_low, kernel_size=hidden_gs_kernel, padding=padding_h_gs),
+            nn.Sigmoid()
+        )
+
+        padding_m = memory_gate_kernel // 2
+        self.memory_gs = nn.Sequential(
+            nn.Conv2d(channel_low, channel_low, kernel_size=memory_gate_kernel, padding=padding_m),
+            nn.Sigmoid()
+        )
+
+        padding_m_gs = memory_gs_kernel // 2
+        self.memory_gs = nn.Sequential(
+            nn.Conv2d(channel_low, channel_low, kernel_size=memory_gs_kernel, padding=padding_m_gs),
+            nn.Sigmoid()
+        )
+
+
+        self.dropout = nn.Dropout(p=dropout)
+        self.align_d = nn.Conv2d(channel_low+channel_high, channel_low, kernel_size=1, padding=0)
+
+    def forward(self, low, high, memory):
+
+        upsampled_high = self.upsample(high)       
+        x_input = self.align_d(torch.cat((upsampled_high, low), dim=1))
+        
+        c_output = (1 - self.hidden_gate(low)) * x_input + (1 - self.memory_gs(memory)) * memory
+        
+        output = (1 - self.memory_gate(memory)) * x_input + (1 - self.hidden_gs(low)) * low
+
+        return output, c_output
