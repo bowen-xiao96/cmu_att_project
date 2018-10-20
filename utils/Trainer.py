@@ -31,7 +31,7 @@ train_loss_ = None
 train_top1_accu_ = None
 test_loss_ = None
 test_top1_accu_ = None
-
+test_model_ = None
 
 # ========== end state data ==========
 
@@ -217,7 +217,8 @@ def main_loop():
         if lr_sched_:
             lr_sched_(optimizer_, i)
 
-        train_one_epoch(i)
+        if test_model_ != 1:
+            train_one_epoch(i)
         test_accu = test(i)
 
         # save models

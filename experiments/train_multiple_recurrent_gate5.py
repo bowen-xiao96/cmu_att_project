@@ -11,6 +11,7 @@ sys.path.insert(0, '/home/simingy/cmu_att_project/')
 from utils import Trainer
 from utils.model_tools import initialize_vgg
 from model.multiple_recurrent_newgate import *
+from model.multiple_recurrent_rgc import *
 from model.gate import *
 from dataset.imagenet.get_imagenet_dataset import get_dataloader
 
@@ -33,10 +34,6 @@ if len(sys.argv) > 4:
 else:
     weight_file = None
 
-test_model = 0
-if len(sys.argv) > 5:
-    test_model = sys.argv[5]
-
 print('Unrolling time step: %d' % unroll_count)
 
 #
@@ -47,7 +44,7 @@ connections = (
     (20, 15, 512, 256, 2),
     # (27, 22, 512, 512, 2)
 )
-model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule2)
+model = MultipleRecurrentModel_RGC(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule5, rgc=1, recurrent_count=2)
 initialize_vgg(model)
 
 if weight_file:
@@ -72,7 +69,7 @@ model.cuda()
 #
 train_loader, test_loader = get_dataloader(
     '/data2/simingy/data/Imagenet',
-    40,
+    32,
     8
 )
 max_step = len(train_loader)
@@ -123,8 +120,8 @@ vgg_params = list(model.module.backbone.parameters()) + list(model.module.classi
 gating_params = list(model.module.gating.parameters())
 
 optimizer = optim.Adam([
-    {'params': vgg_params, 'lr': 1e-6, 'weight_decay': 1e-4},
-    {'params': gating_params, 'lr': 1e-5, 'weight_decay': 1e-4},
+    {'params': vgg_params, 'lr': 1e-5, 'weight_decay': 1e-4},
+    {'params': gating_params, 'lr': 1e-4, 'weight_decay': 1e-4},
 ])
 
 
@@ -132,17 +129,11 @@ def call_back(epoch, step, locals_dict, globals_dict):
     optimizer = globals_dict['optimizer_']
 
     if epoch == 0:
-        if step <= max_step // 3:
-            return
-        elif step <= 2 * max_step // 3:
-            lr = 3e-6
-        else:
-            lr = 1e-6
-
-    elif epoch == 1 and step <= max_step // 2:
-        lr = 3e-7
+        return
+    elif epoch == 1:
+        lr = 1e-5
     else:
-        lr = 1e-7
+        lr = 1e-6
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
@@ -160,6 +151,5 @@ Trainer.start(
     display_freq=50,
     output_dir=TAG,
     save_every=1,
-    max_keep=50,
-    test_model=test_model,
+    max_keep=50
 )

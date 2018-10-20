@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as A
 
-sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
+sys.path.insert(0, '/home/simingy/cmu_att_project/')
 from model.gate import *
 
 network_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
@@ -24,8 +24,8 @@ class MultipleRecurrentModel_RGC(nn.Module):
         # ** currently, there should not be two connections pointing to a same low_layer **
 
         self.unroll_count = unroll_count
-        self.memory = list()
-        self.recurrent_count = recurrent_count
+        self.memory_idx = list()
+        self.recurrent_cnt = recurrent_count
 
         # backbone network
         self.backbone = nn.ModuleList()
@@ -78,7 +78,7 @@ class MultipleRecurrentModel_RGC(nn.Module):
 
             self.gating.append(gating)
             self.point_to[high_layer].append(low_layer)
-            self.memory.append(low_layer)
+            self.memory_idx.append(low_layer)
 
     def forward(self, x):
         # each unrolling step, the model makes prediction at the final classifier
@@ -96,7 +96,7 @@ class MultipleRecurrentModel_RGC(nn.Module):
         for i in range(self.min_end_layer):
             # do not actually include the starting layer
             x = self.backbone[i](x)
-            if i in self.memory:
+            if i in self.memory_idx:
                 memory_buf[memory_cnt].append(x)
                 memory_cnt += 1
 
@@ -114,7 +114,7 @@ class MultipleRecurrentModel_RGC(nn.Module):
                     for point_to in self.point_to[j]:
                         buf[point_to].append(x)
 
-                    if j in self.memory:
+                    if j in self.memory_idx:
                         memory_buf[memory_cnt].append(x)
                         memory_cnt += 1
 
@@ -130,9 +130,11 @@ class MultipleRecurrentModel_RGC(nn.Module):
 
                 # record which gating_models to use
                 pos = 0
+                memory_cnt = 0
 
                 low, high = buf[self.min_end_layer][-2:]
                 low_memory = memory_buf[memory_cnt][-1]
+                #print("low_memory:", low_memory.size())
                 x, low_memory_update = self.gating[pos](low, high, low_memory)
 
                 memory_buf[memory_cnt].append(low_memory_update)
@@ -147,7 +149,7 @@ class MultipleRecurrentModel_RGC(nn.Module):
                         low, high = x, buf[j][-1]
                         low_memory = memory_buf[memory_cnt][-1]
                         x, low_memory_update = self.gating[pos](low, high, low_memory)
-                        memory[memory_cnt].append(low_memory_update)
+                        memory_buf[memory_cnt].append(low_memory_update)
                         memory_cnt += 1
                         pos += 1
 
@@ -171,14 +173,14 @@ class MultipleRecurrentModel_RGC(nn.Module):
 if __name__ == '__main__':
     # high_layer, low_layer, high_layer_dim, low_layer_dim, scale_factor
     connections = (
-        (6, 3, 128, 64, 2),
+        #(6, 3, 128, 64, 2),
         (13, 8, 256, 128, 2),
         (20, 15, 512, 256, 2),
-        (27, 22, 512, 512, 2)
+        #(27, 22, 512, 512, 2)
     )
 
     # works for imagenet images
-    model = MultipleRecurrentModel(network_cfg, connections, 5, 1000)
+    model = MultipleRecurrentModel_RGC(network_cfg, connections, 5, 1000, recurrent_count=2)
     print(model)
     model_input = A.Variable(torch.zeros(5, 3, 224, 224))
     model_output = model(model_input)

@@ -252,7 +252,7 @@ class GatingModule4(nn.Module):
 # baseline concat
 class GatingModule5(nn.Module):
     def __init__(self, channel_low, channel_high, upsample, hidden_gate_kernel=1, hidden_gs_kernel=1, memory_gate_kernel=1, memory_gs_kernel=1, dropout=0.5):
-        super(GatingModule2, self).__init__()
+        super(GatingModule5, self).__init__()
 
         if isinstance(upsample, int):
             self.upsample = nn.Sequential(
@@ -282,7 +282,7 @@ class GatingModule5(nn.Module):
         )
 
         padding_m = memory_gate_kernel // 2
-        self.memory_gs = nn.Sequential(
+        self.memory_gate = nn.Sequential(
             nn.Conv2d(channel_low, channel_low, kernel_size=memory_gate_kernel, padding=padding_m),
             nn.Sigmoid()
         )
@@ -297,13 +297,64 @@ class GatingModule5(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.align_d = nn.Conv2d(channel_low+channel_high, channel_low, kernel_size=1, padding=0)
 
-    def forward(self, low, high, memory):
+    def forward(self, low, high, memory_low):
 
         upsampled_high = self.upsample(high)       
         x_input = self.align_d(torch.cat((upsampled_high, low), dim=1))
         
-        c_output = (1 - self.hidden_gate(low)) * x_input + (1 - self.memory_gs(memory)) * memory
+        c_output = (1 - self.hidden_gate(low)) * x_input + (1 - self.memory_gs(memory_low)) * memory_low
         
-        output = (1 - self.memory_gate(memory)) * x_input + (1 - self.hidden_gs(low)) * low
+        output = (1 - self.memory_gate(memory_low)) * x_input + (1 - self.hidden_gs(low)) * low
 
         return output, c_output
+
+# gate scheme 6
+# baseline model use add operation replace the gate
+class GatingModule6(nn.Module):
+    def __init__(self, channel_low, channel_high, upsample, gating_kernel, reprojection_kernel, dropout=0.5):
+        super(GatingModule6, self).__init__()
+
+        # use a upsampled version of high level feature map
+        # (can be either interpolation and deconvolution)
+        # to concatenate with the low level feature map and generate a gate
+        # use this gate to mix the low level feature map and reprojected high level feature map
+
+        if isinstance(upsample, int):
+            # upsample is an int specifying the scale_factor
+            self.upsample = nn.Sequential(
+                nn.Upsample(scale_factor=upsample, mode='bilinear'),
+                nn.Conv2d(channel_high, channel_high, kernel_size=3),
+                nn.ReLU(inplace=True)
+            )
+
+        else:
+            # upsample param will be a tuple specifying the params of the deconvolution layer
+            # kernel_size, stride, padding, output_padding
+            ks, s, p, op = upsample
+
+            # add a ReLU layer after each convolution layer
+            self.upsample = nn.Sequential(
+                nn.ConvTranspose2d(channel_high, channel_high, kernel_size=ks, stride=s, padding=p, output_padding=op),
+                nn.ReLU(inplace=True)
+            )
+
+        padding_k = gating_kernel // 2
+        self.gating = nn.Sequential(
+            nn.Conv2d(channel_low + channel_high, channel_low, kernel_size=gating_kernel, padding=padding_k),
+        )
+
+        padding_p = reprojection_kernel // 2
+        self.reproject = nn.Sequential(
+            nn.Conv2d(channel_high, channel_low, kernel_size=reprojection_kernel, padding=padding_p),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=dropout)
+        )
+
+    def forward(self, low, high):
+        upsampled_high = self.upsample(high)
+        reprojected_high = self.reproject(upsampled_high)
+
+        # concatenate along the channel and generate gating
+        gate = self.gating(torch.cat((upsampled_high, low), dim=1))
+        output = gate + low
+        return output

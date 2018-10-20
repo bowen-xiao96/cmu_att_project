@@ -33,21 +33,17 @@ if len(sys.argv) > 4:
 else:
     weight_file = None
 
-test_model = 0
-if len(sys.argv) > 5:
-    test_model = sys.argv[5]
-
 print('Unrolling time step: %d' % unroll_count)
 
 #
 # create model
 #
 connections = (
-    (13, 8, 256, 128, 2),
+    # (13, 8, 256, 128, 2),
     (20, 15, 512, 256, 2),
     # (27, 22, 512, 512, 2)
 )
-model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule2)
+model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule6)
 initialize_vgg(model)
 
 if weight_file:
@@ -160,6 +156,5 @@ Trainer.start(
     display_freq=50,
     output_dir=TAG,
     save_every=1,
-    max_keep=50,
-    test_model=test_model,
+    max_keep=50
 )
