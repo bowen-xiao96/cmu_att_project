@@ -142,3 +142,11 @@ def extract_vgg_network_features(model, x, layers):
             features[real_idx] = x.data.cpu().numpy()
 
     return [features]
+
+def load_parallel(pre_dict):
+    ret_val = 0
+    for k, v in pre_dict.items():
+        if 'module' in k:
+            ret_val = 1
+    
+    return ret_val

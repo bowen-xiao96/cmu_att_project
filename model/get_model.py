@@ -6,6 +6,7 @@ from torchvision.models import vgg16
 import multiple_recurrent_l as l
 import multiple_recurrent_newloss as nl
 import multiple_recurrent_newgate as ng
+import multiple_recurrent_nosplit_1 as ns_1
 import gate as g
 
 all_connections = (
@@ -14,6 +15,11 @@ all_connections = (
     (27, 22, 512, 512, 2),
 )
 
+nosplit_connections = (
+    (15, 8, 256, 128, 2),
+    (20, 15, 512, 256, 2),
+    # (27, 22, 512, 512, 2)
+)
 
 def get_model(name):
     # vgg, vgg_caffe (baseline models)
@@ -46,10 +52,11 @@ def get_model(name):
         gate_name = 'GatingModule%d' % int(name[-1])
         model = ng.MultipleRecurrentModel(ng.network_cfg, all_connections[:-1], unroll_count, num_class,
                                           gating_module=getattr(g, gate_name))
-
+    
     elif name == 'connect3':
         model = l.MultipleRecurrentModel(l.network_cfg, all_connections, unroll_count, num_class)
-
+    elif name == "multiple_recurrent_nosplit_1":
+        model = ns_1.MultipleRecurrentModel(ns_1.network_cfg, nosplit_connections, unroll_count, num_class, gating_module=getattr(g, 'GatingModule8'))
     else:
         raise NotImplementedError
 

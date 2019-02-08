@@ -3,7 +3,7 @@ import numpy as np
 from collections import OrderedDict
 from get_noise import get_dataloader
 
-sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
+sys.path.insert(0, '/home/simingy/cmu_att_project/')
 
 from model.get_model import get_model
 from model.multiple_recurrent_l import *
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     model.eval()
     model = model.cuda()
     del state_dict
-
+    print(model)
     # load data and test
     imagenet_dir = '/data2/simingy/data/Imagenet'
     mode = 'caffe' if model_name == 'vgg_caffe' else 'pytorch'
