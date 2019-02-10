@@ -98,15 +98,15 @@ model.cuda()
 #
 # load dataset
 #
-train_loader, test_loader = get_dataloader(
-    '/data2/simingy/data/Imagenet',
-    32,
-    8
-)
-#imagenet_dir = '/data2/simingy/data/Imagenet'
-#mode = 'pytorch'
-#test_loader = get_dataloader(imagenet_dir, mode, 20, 8, 50)
-#train_loader = test_loader
+#train_loader, test_loader = get_dataloader(
+#    '/data2/simingy/data/Imagenet',
+#    32,
+#    8
+#)
+imagenet_dir = '/data2/simingy/data/Imagenet'
+mode = 'pytorch'
+test_loader = get_dataloader(imagenet_dir, mode, 20, 8, 10)
+train_loader = test_loader
 
 max_step = len(train_loader)
 
