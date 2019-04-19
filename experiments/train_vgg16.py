@@ -9,19 +9,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-sys.path.insert(0, '/data2/bowenx/attention/pay_attention')
+sys.path.insert(0, '/home/simingy/cmu_att_project/')
 
 from utils import Trainer
+from utils.model_tools import load_parallel
 from utils.model_tools import initialize_vgg
 from torchvision.models import vgg16
-from dataset.cifar.get_cifar10_dataset import get_dataloader
+#from dataset.cifar.get_cifar10_dataset import get_dataloader
+sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/noise')
+from get_noise import get_dataloader
+
 
 assert len(sys.argv) > 2
 GPU_ID = int(sys.argv[1])
-os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 TAG = sys.argv[2]
 
 model = vgg16()
+print("*********************")
+print(model)
+'''
 model.classifier = nn.Sequential(
     nn.Dropout(p=0.5),
     nn.Linear(512, 512),
@@ -29,14 +36,21 @@ model.classifier = nn.Sequential(
     nn.Dropout(p=0.5),
     nn.Linear(512, 10)
 )
-initialize_vgg(model)
+initialize_vgg(model)'''
+
+state_dict = torch.load('/home/simingy/vgg16-397923af.pth')
+
+print(state_dict.keys())
+print(model.state_dict().keys())
+model.load_state_dict(state_dict)
+
+
+model = nn.DataParallel(model)
 model.cuda()
 
-train_loader, test_loader = get_dataloader(
-    '/data2/bowenx/attention/pay_attention/dataset/cifar',
-    256,
-    1
-)
+imagenet_dir = '/data2/simingy/data/Imagenet/'
+test_loader = get_dataloader(imagenet_dir, 'pytorch', 64, 8, 0)
+train_loader = test_loader
 
 criterion = nn.CrossEntropyLoss()
 criterion.cuda()
@@ -67,5 +81,6 @@ Trainer.start(
     display_freq=50,
     output_dir=TAG,
     save_every=5,
-    max_keep=50
+    max_keep=50,
+    test_model=1
 )

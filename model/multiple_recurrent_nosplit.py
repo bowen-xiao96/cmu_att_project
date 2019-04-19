@@ -1,4 +1,5 @@
 import os, sys
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -7,6 +8,8 @@ import torch.autograd as A
 
 sys.path.insert(0, '/home/simingy/cmu_att_project')
 from model.gate import *
+sys.path.insert(0, '/home/simingy/cmu_att_project/utils/')
+from PCA import my_PCA
 
 network_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
 
@@ -93,7 +96,13 @@ class MultipleRecurrentModel(nn.Module):
             # do not actually include the starting layer
             x = self.backbone[i](x)
             buf[i].append(x)
+            
+            if(i == 14):
+               print(x.shape)
+               a = x.view(x.size(0), -1)
+               #a = my_PCA(a)
 
+               np.save('/data2/simingy/pca/r_noise_50_4.npy', a.data.cpu().numpy())
             for point_to in self.point_to[i]:
                 buf[point_to].append(x)
 
