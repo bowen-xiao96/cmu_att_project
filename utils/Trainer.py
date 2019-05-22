@@ -157,7 +157,7 @@ def test(epoch):
 
         # compute output
         pred = model_(x)
-        print(pred.shape)
+
         loss = criterion_(pred, y)
 
         # measure accuracy and record loss

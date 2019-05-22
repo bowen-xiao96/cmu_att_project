@@ -518,3 +518,94 @@ class GatingModule8_Ctl(nn.Module):
         output = contextual + low
 
         return output
+
+# gating scheme 8 control
+# top-down context real horizontal
+class GatingModule8_Ctl_Sig(nn.Module):
+    def __init__(self, channel_low, channel_high, upsample, gating_kernel, horizontal_kernel, dropout=0.5):
+        super(GatingModule8_Ctl_Sig, self).__init__()
+
+        if isinstance(upsample, int):
+            # upsample is an int specifying the scale_factor
+            self.upsample = nn.Sequential(
+                nn.Upsample(scale_factor=upsample, mode='bilinear'),
+                nn.Conv2d(channel_high, channel_high, kernel_size=3),
+                nn.ReLU(inplace=True)
+            )
+
+        else:
+            # upsample param will be a tuple specifying the params of the deconvolution layer
+            # kernel_size, stride, padding, output_padding
+            ks, s, p, op = upsample
+
+            # add a ReLU layer after each convolution layer
+            self.upsample = nn.Sequential(
+                nn.ConvTranspose2d(channel_high, channel_high, kernel_size=ks, stride=s, padding=p, output_padding=op),
+                nn.ReLU(inplace=True)
+            )
+        
+        padding_h = horizontal_kernel // 2
+        self.horizontal = nn.Sequential(
+            nn.Conv2d(channel_low, channel_low, kernel_size=horizontal_kernel, padding=padding_h),
+            nn.ReLU(inplace=True),
+        )
+        padding_c = 3 // 2
+        self.contextual = nn.Sequential(
+            nn.Conv2d(channel_low + channel_high, channel_low, kernel_size=horizontal_kernel, padding=padding_h),
+            nn.Sigmoid()
+        )
+
+    def forward(self, low, high):
+        upsampled_high = self.upsample(high)
+
+        horizontal = self.horizontal(low)
+
+        contextual = self.contextual(torch.cat((upsampled_high, horizontal), dim=1))
+        output = contextual + low
+
+        return output
+
+# gating scheme 8 control
+# top-down context real horizontal without activate
+class GatingModule8_Ctl_Na(nn.Module):
+    def __init__(self, channel_low, channel_high, upsample, gating_kernel, horizontal_kernel, dropout=0.5):
+        super(GatingModule8_Ctl_Na, self).__init__()
+
+        if isinstance(upsample, int):
+            # upsample is an int specifying the scale_factor
+            self.upsample = nn.Sequential(
+                nn.Upsample(scale_factor=upsample, mode='bilinear'),
+                nn.Conv2d(channel_high, channel_high, kernel_size=3),
+                nn.ReLU(inplace=True)
+            )
+
+        else:
+            # upsample param will be a tuple specifying the params of the deconvolution layer
+            # kernel_size, stride, padding, output_padding
+            ks, s, p, op = upsample
+
+            # add a ReLU layer after each convolution layer
+            self.upsample = nn.Sequential(
+                nn.ConvTranspose2d(channel_high, channel_high, kernel_size=ks, stride=s, padding=p, output_padding=op),
+                nn.ReLU(inplace=True)
+            )
+        
+        padding_h = horizontal_kernel // 2
+        self.horizontal = nn.Sequential(
+            nn.Conv2d(channel_low, channel_low, kernel_size=horizontal_kernel, padding=padding_h),
+            nn.ReLU(inplace=True),
+        )
+        padding_c = 3 // 2
+        self.contextual = nn.Sequential(
+            nn.Conv2d(channel_low + channel_high, channel_low, kernel_size=horizontal_kernel, padding=padding_h),
+        )
+    def forward(self, low, high):
+        upsampled_high = self.upsample(high)
+
+        horizontal = self.horizontal(low)
+
+        contextual = self.contextual(torch.cat((upsampled_high, horizontal), dim=1))
+        output = contextual + low
+
+        return output
+

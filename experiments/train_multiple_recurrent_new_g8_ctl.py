@@ -13,7 +13,7 @@ from utils.model_tools import load_parallel
 from utils.model_tools import initialize_vgg
 from model.multiple_recurrent_newgate import *
 from model.gate import *
-###from dataset.imagenet.get_imagenet_dataset import get_dataloader
+#from dataset.imagenet.get_imagenet_dataset import get_dataloader
 sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/noise')
 from get_noise import get_dataloader
 #
@@ -105,7 +105,7 @@ model.cuda()
 #)
 imagenet_dir = '/data2/simingy/data/Imagenet'
 mode = 'pytorch'
-test_loader = get_dataloader(imagenet_dir, mode, 20, 8, 10)
+test_loader = get_dataloader(imagenet_dir, mode, 80, 8, 0)
 train_loader = test_loader
 
 max_step = len(train_loader)

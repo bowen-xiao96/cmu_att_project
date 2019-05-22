@@ -13,6 +13,8 @@ from PCA import my_PCA
 
 network_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
 
+k = 0
+dprime_parameters = np.zeros((38, 1000, 2))
 
 class MultipleRecurrentModel(nn.Module):
     def __init__(self, network_cfg, connections, unroll_count, num_class,
@@ -40,6 +42,7 @@ class MultipleRecurrentModel(nn.Module):
                 input_dim = v
 
         # we use fully connected layer as classifier
+        '''
         self.classifier = nn.Sequential(
             nn.Linear(512 * last_dim * last_dim, 4096),
             nn.ReLU(inplace=True),
@@ -49,6 +52,15 @@ class MultipleRecurrentModel(nn.Module):
             nn.Dropout(p=dropout),
             nn.Linear(4096, num_class)
         )
+        '''
+        self.classifier = nn.ModuleList()
+        self.classifier.append(nn.Linear(512 * last_dim * last_dim, 4096))
+        self.classifier.append(nn.ReLU(inplace=True))
+        self.classifier.append(nn.Dropout(p=dropout))
+        self.classifier.append(nn.Linear(4096, 4096))
+        self.classifier.append(nn.ReLU(inplace=True))
+        self.classifier.append(nn.Dropout(p=dropout))
+        self.classifier.append(nn.Linear(4096, num_class))
 
         # set up recurrent connections
         self.end_layers = set([c[0] for c in connections])
@@ -56,7 +68,7 @@ class MultipleRecurrentModel(nn.Module):
         print("max_end_layer:", self.max_end_layer)
 
         self.layer_count = len(self.backbone)
-
+        print("layer_count:", self.layer_count)
         self.gating = nn.ModuleList()
         self.point_to = [list() for _ in self.backbone]
 
@@ -85,6 +97,9 @@ class MultipleRecurrentModel(nn.Module):
         # each unrolling step, the model makes prediction at the final classifier
 
         # the input to each layer (not output)
+        global k
+        global dprime_parameters
+
         buf = [list() for _ in self.backbone]
 
         # the intermediate predictions of the network
@@ -96,13 +111,27 @@ class MultipleRecurrentModel(nn.Module):
             # do not actually include the starting layer
             x = self.backbone[i](x)
             buf[i].append(x)
+            temp_list = [8, 9, 10, 11, 13, 15, 16, 18] 
+            temp_dic = {'8': 0, '9': 1, '10': 2, '11': 3, '13': 4, '15': 5, '16': 6, '18': 7, '20': 8, '22': 9, '23': 10, '25': 11, '27': 12, '29': 13}
             
-            if(i == 14):
-               print(x.shape)
-               a = x.view(x.size(0), -1)
+            #if i in temp_list:
+               #print(x.shape)
+               #a = x.view(x.size(0), -1)
                #a = my_PCA(a)
 
-               np.save('/data2/simingy/pca/r_noise_50_4.npy', a.data.cpu().numpy())
+               #np.save('/data2/simingy/pca/r_noise_50_4.npy', a.data.cpu().numpy())
+               #print(x.shape)
+            if i < 8:
+                if k < 1000:
+                    dprime_parameters[i][k][0] = torch.mean(x).data.cpu().numpy()
+                    dprime_parameters[i][k][1] = torch.std(x).data.cpu().numpy()
+            #if i == 18:
+            #       k = k + 1
+               #print(k)
+                if k == 1000:
+                    np.save('/data2/simingy/data/dprime/recurrent_l3_u4_noise50/recurrent_l3_u4_noise50_layer{}.npy'.format(str(i)), dprime_parameters[i])
+            
+            
             for point_to in self.point_to[i]:
                 buf[point_to].append(x)
 
@@ -120,10 +149,28 @@ class MultipleRecurrentModel(nn.Module):
                     # put it into the buffer if there is feedback connection
                     #for point_to in self.point_to[j]:
                     #    buf[point_to].append(x)
+                    '''
+                    if k < 1000:
+                        dprime_parameters[j][k][0] = torch.mean(x).data.cpu().numpy()
+                        dprime_parameters[j][k][1] = torch.std(x).data.cpu().numpy()
+                    if k == 1000:
+                        np.save('/data2/simingy/data/dprime/recurrent_noise50/recurrent_noise50_layer{}.npy'.format(str(j)), dprime_parameters[j])
+                    '''
+                   
 
                 # make final predictions
                 x = x.view(x.size(0), -1)
-                pred = self.classifier(x)
+                pred = x
+                for j in range(7):
+                    pred = self.classifier[j](pred)
+                    '''
+                    if k < 1000:
+                        dprime_parameters[j+self.layer_count][k][0] = torch.mean(pred).data.cpu().numpy()
+                        dprime_parameters[j+self.layer_count][k][1] = torch.std(pred).data.cpu().numpy()
+                    if k == 1000:
+                        np.save('/data2/simingy/data/dprime/recurrent_noise50/recurrent_noise50_layer{}.npy'.format(str(j+self.layer_count)), dprime_parameters[j+self.layer_count])
+                    '''
+                #k = k + 1           
                 intermediate_pred.append(pred)
                 #print("Done2!")
 
@@ -132,12 +179,14 @@ class MultipleRecurrentModel(nn.Module):
                 # and make intermediate predictions using the prediction module
 
                 # record which gating_models to use
+ 
                 pos = 0
                 pointer = self.point_to[self.max_end_layer][0]
                 low, high = buf[pointer][-2:]
                 x = self.gating[pos](low, high)
                 buf[pointer].append(x)
                 pos += 1
+
                 for j in range(self.loop_num - 1):
                     pointer += 1
                     x = self.backbone[pointer](x)
@@ -148,24 +197,59 @@ class MultipleRecurrentModel(nn.Module):
                     x = self.gating[pos](low, high)
                     buf[pointer].append(x)
                     pos += 1
-
+                
+                if i == self.unroll_count - 1:
+                    if k < 1000: 
+                        dprime_parameters[pointer][k][0] = torch.mean(x).data.cpu().numpy()
+                        dprime_parameters[pointer][k][1] = torch.std(x).data.cpu().numpy()
+                
                 pointer += 1
                 #print("Done3!")
 
                 for j in range(pointer, self.layer_count):
-
+                    
                     x = self.backbone[j](x)
 
                     # put it into the buffer if there is feedback connection
                     for point_to in self.point_to[j]:
                         buf[point_to].append(x)
+                    
+                    #if j in temp_list:
+                        #print(x.shape)
+                        #a = x.view(x.size(0), -1)
+                        #a = my_PCA(a)
 
+                        #np.save('/data2/simingy/pca/r_noise_50_4.npy', a.data.cpu().numpy())
+                        #print(x.shape)
+                    if i == self.unroll_count - 1:
+                        if k < 1000:
+                            dprime_parameters[j][k][0] = torch.mean(x).data.cpu().numpy()
+                            dprime_parameters[j][k][1] = torch.std(x).data.cpu().numpy()
+
+                        #if j == 18:
+                        #    k = k + 1
+                            #print(k)
+                        if k == 1000:
+                            np.save('/data2/simingy/data/dprime/recurrent_l3_u4_noise50/recurrent_l3_u4_noise50_layer{}.npy'.format(str(8)), dprime_parameters[8])
+                            np.save('/data2/simingy/data/dprime/recurrent_l3_u4_noise50/recurrent_l3_u4_noise50_layer{}.npy'.format(str(j)), dprime_parameters[j])
+                    
                 # make final predictions
                 x = x.view(x.size(0), -1)
-                pred = self.classifier(x)
+                pred = x
+                for j in range(7):
+                    pred = self.classifier[j](pred)
+                    if i == self.unroll_count - 1:
+                        if k < 1000:
+                            dprime_parameters[j+31][k][0] = torch.mean(pred).data.cpu().numpy()
+                            dprime_parameters[j+31][k][1] = torch.std(pred).data.cpu().numpy()
+                        if k == 1000:
+                            np.save('/data2/simingy/data/dprime/recurrent_l3_u4_noise50/recurrent_l3_u4_noise50_layer{}.npy'.format(str(j+31)), dprime_parameters[j+31])
+
+
+                #pred = self.classifier(x)
                 intermediate_pred.append(pred)
                 #print("Done4!")
-
+        k = k + 1
         # collect predictions
         # batch_size * unroll_count * num_class
         intermediate_pred = torch.stack(intermediate_pred, dim=1)

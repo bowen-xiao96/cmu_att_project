@@ -11,7 +11,7 @@ sys.path.insert(0, '/home/simingy/cmu_att_project/')
 from utils import Trainer
 from utils.model_tools import load_parallel
 from utils.model_tools import initialize_vgg
-from model.multiple_recurrent_newgate import *
+from model.multiple_recurrent_nosplit import *
 from model.gate import *
 #from dataset.imagenet.get_imagenet_dataset import get_dataloader
 sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/noise')
@@ -41,13 +41,13 @@ print('Unrolling time step: %d' % unroll_count)
 # create model
 #
 connections = (
+    #(27, 20, 512, 512, 2),
+    (20, 13, 512, 256, 2),
     (15, 8, 256, 128, 2),
-    (22, 15, 512, 256, 2),
-    (27, 22, 512, 512, 2),
 )
-model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule8)
+model = MultipleRecurrentModel(network_cfg, connections, unroll_count, 1000, gating_module=GatingModule8_Ctl)
 initialize_vgg(model)
-'''
+
 if weight_file:
     print('Loading weight file: ' + weight_file)
     state_dict = torch.load(weight_file)
@@ -76,6 +76,7 @@ if weight_file:
 
     #model.load_state_dict(state_dict, strict=False)
     #del state_dict
+
 '''
 if weight_file:
     print('Loading weight file: ' + weight_file)
@@ -89,6 +90,7 @@ if weight_file:
 
     model.load_state_dict(state_dict, strict=False)
     del state_dict
+'''
 if GPU_ID == -1:
     model = nn.DataParallel(model)
 model.cuda()
@@ -103,7 +105,7 @@ model.cuda()
 #)
 imagenet_dir = '/data2/simingy/data/Imagenet'
 mode = 'pytorch'
-test_loader = get_dataloader(imagenet_dir, mode, 20, 8, 10)
+test_loader = get_dataloader(imagenet_dir, mode, 80, 8, 0)
 train_loader = test_loader
 
 max_step = len(train_loader)

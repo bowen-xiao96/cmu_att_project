@@ -14,8 +14,8 @@ from utils.model_tools import initialize_vgg
 from model.vgg16 import *
 from model.gate import *
 #from dataset.imagenet.get_imagenet_dataset import get_dataloader
-sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/noise')
-from get_noise import get_dataloader
+sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/dprime')
+from get_data import get_dataloader
 
 # parse params
 #
@@ -45,7 +45,7 @@ test_model = 1
 
 model = VGG16(network_cfg, 1000)
 initialize_vgg(model)
-
+print('# parameters num:', sum(param.numel() for param in model.parameters()))
 if weight_file:
     print('Loading weight file: ' + weight_file)
     state_dict = torch.load(weight_file)
@@ -71,9 +71,9 @@ model.cuda()
 #    32,
 #    8
 #)
-imagenet_dir = '/data2/simingy/data/test_images'
+imagenet_dir = '/data2/simingy/data/Imagenet/val'
 mode = 'pytorch'
-test_loader = get_dataloader(imagenet_dir, mode, 250, 8, 50)
+test_loader = get_dataloader(imagenet_dir, mode, 50, 8, 50)
 train_loader = test_loader
 max_step = len(train_loader)
 

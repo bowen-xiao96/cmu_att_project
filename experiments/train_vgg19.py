@@ -14,19 +14,18 @@ sys.path.insert(0, '/home/simingy/cmu_att_project/')
 from utils import Trainer
 from utils.model_tools import load_parallel
 from utils.model_tools import initialize_vgg
-from torchvision.models import vgg16
+from torchvision.models import vgg16,vgg19
 #from dataset.cifar.get_cifar10_dataset import get_dataloader
-sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/dprime')
-from get_data import get_dataloader
+sys.path.insert(0, '/home/simingy/cmu_att_project/experiments/noise')
+from get_noise import get_dataloader
 
 
-assert len(sys.argv) > 3
+assert len(sys.argv) > 2
 GPU_ID = int(sys.argv[1])
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 TAG = sys.argv[2]
-load_dir = sys.argv[3]
 
-model = vgg16()
+model = vgg19()
 print('# parameters num:', sum(param.numel() for param in model.parameters()))
 print("*********************")
 print(model)
@@ -40,7 +39,7 @@ model.classifier = nn.Sequential(
 )
 initialize_vgg(model)'''
 
-state_dict = torch.load('/home/simingy/vgg16-397923af.pth')
+state_dict = torch.load('/home/simingy/vgg19-dcbb9e9d.pth')
 
 print(state_dict.keys())
 print(model.state_dict().keys())
@@ -51,7 +50,7 @@ model = nn.DataParallel(model)
 model.cuda()
 
 imagenet_dir = '/data2/simingy/data/Imagenet/'
-test_loader = get_dataloader(load_dir, 'pytorch', 50, 8, 50)
+test_loader = get_dataloader(imagenet_dir, 'pytorch', 64, 8, 0)
 train_loader = test_loader
 
 criterion = nn.CrossEntropyLoss()

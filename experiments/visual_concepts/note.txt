@@ -1,0 +1,5 @@
+starting with sparseness checking to get a feel for how to work in this environment
+(since I think that'll be simpler)
+
+little worried about how Xuyang's code is all in tensorflow and these models are 
+in pytorch, will have to see if that's a big problem or not
